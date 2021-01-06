@@ -3,6 +3,7 @@ from numpy import log as ln
 from matplotlib import pyplot as plt
 from random import gauss
 from itertools import *
+import time
 
 ## Datas
 #Pipe parameters
@@ -185,6 +186,7 @@ class HEX:
             m1 = m2*(Ts2 - Tr2)/(Ts1 - Tr1)
             Ts2c = (Tr1 > Tr2)*(Tr1 < Ts1)
             Ts2_vrai = Ts2
+            
         
         if Ts2>Ts1 or not Ts2c or m1 > self.qmax:
             #print('Uncovered heat')
@@ -193,9 +195,9 @@ class HEX:
             NUT = UA/(Cp*m2)
             R = m2/m1
             E = eff(NUT, R)
-            #print(E)
             Ts2_vrai = Tr2 + E*(Ts1-Tr2)
             Tr1 = Ts1 - (m2/m1)*(Ts2_vrai-Tr2)
+            
                 
         # #Case in which the approximation for DeltaTlm doesn't work
         # if Ts2_vrai > Ts2: 
@@ -205,7 +207,6 @@ class HEX:
         #     
         #     def f(x):
         #         return np.exp(k*(x-1)) - x
-
         #     def f_prime(x):
         #         return k*np.exp(k*(x-1)) - 1
         #             
@@ -300,6 +301,7 @@ def simulation( RES, Ts2_h, Tsupply_h = Tint):
     mdot_SS = []
     T_supply_secondary = []
     T_secondary_demand = []
+    time1 = time.time()
     for j in range(24):
         RES.supplyT = Tsupply_h[j]
         print(j)
@@ -320,7 +322,7 @@ def simulation( RES, Ts2_h, Tsupply_h = Tint):
             T_supply_secondary.append([X[0].Ts2_vrai for X in RES.substations])
             t_tot += 1
             
-    
+    time2 = time.time()
     plt.figure()
     plt.plot(t, T_return, label = 'Network return temperature at the source')
     for i in range(len(T_return_SS[0])):
@@ -351,10 +353,13 @@ def simulation( RES, Ts2_h, Tsupply_h = Tint):
         plt.legend() 
     
     plt.show()
-    return t, mdot_SS
+    #return t, mdot_SS
+    return time2 - time1
     
+    
+##Model parameters
 #Inlet temperature of the network
-Tint = [gauss(75,4) for i in range(24)]
+Tint = [gauss(60,4) for i in range(24)]
 #Temperature demand (profiles)
 Ts2_1 = [41, 38, 37, 37, 40, 47, 52, 49, 45, 43, 42, 43, 46, 45, 41, 42, 42, 43, 50, 49, 48, 46, 45, 42]
 
@@ -383,10 +388,86 @@ NET3 = Network(75, [SS1, SS2, SS3])
 #simulation(NET3, [Ts2_1, Ts2_2bis, Ts2_3])
 
 
+#Test efficiency of supply temperature augmentation to cover demand
+Ts2_4 = [41, 41, 41, 41, 41, 43, 46, 52, 52, 53, 54, 53, 54, 53, 51, 48, 45, 43, 41, 41, 41, 41, 41, 41]
+T_int_nonadaptative = [60]*24
+T_int_adaptivesupply = [60, 60, 60, 60, 60, 70, 73, 79, 80, 85, 87, 84, 83, 80, 78, 75, 72, 70, 68, 68, 68, 68, 68, 68]
+
+## Test pb stability of the model (supplied T > demand), trying to solve it with physical model instead of mathematical approximation
+
+Ts2_5 = [37, 37, 37, 37, 37, 39, 42, 48, 48, 49, 50, 49, 50, 49, 47, 44, 41, 39, 37, 37, 37, 37, 37, 37]
 
 
 
+class HEXbis(HEX):
+    def solve(self, Ts1):
+        '''For a primary side supply temperature, calculates the return temperature and primary side mass flow, as well as determining whether the network can cover the heat demand'''
+        a = 0.3275
+        Ts2c = True
+        UA = self.UA() #Attention si on modifie Ts2 entre l'itération prédente et la nouvelle?
+        Ts2 = self.Ts2
+        Tr2 = self.Tr2
+        m2 = self.m_dot2
+        Q = Cp * self.m_dot2 * (Ts2 - Tr2)
+        m1 = self.qmax
+        
+        if Ts2 <= Ts1:
+            q = 0.8
+            kA = UA*(m1**(-q) + m2**(-q))
+            Q1 = Q/(Ts1 - Ts2)
+            Q2 = Q/(Cp * (Ts2 - Tr2))
+            c1 = kA*(Q2**q)
+            c2 = (Ts1-Ts2)/(Ts2-Tr2)
+            
+            def g1(x):
+                return x - 1
+            def g2(x):
+                return 1 + (1 - c2 * (x-1))**q
+            def g2_prime(x):
+                return -c2 * q * (1 - c2 * (x-1))**(q-1)
+            def g3(x):
+                return np.log(x)
+                
+            def f(x):
+                if x == 1:
+                    return 1/2 - Q1/c1
+                elif x == 0:
+                    return - Q1/c1
+                else:
+                    return g1(x)/(g2(x) * g3(x))  - Q1/c1
+            
+            def f_prime(x):
+                if x == 1:
+                    return 1/2 * (1/2 + c2 * q /2)
+                elif x == 0:
+                    return 1
+                else:
+                    return ((f(x)+Q1/c1) * ((g3(x) - g1(x)/x)/(g1(x)*g3(x)) - g2_prime(x)/g2(x)))
+            
+            x0 = 1/c2 + 0.8
+            x1 = newton(f, f_prime, x0)
+            Tr1 = Tr2 + x1 * (Ts1-Ts2)
+            m1 = Q /(Cp * (Ts1 - Tr1))
+            
+            Ts2c = (Tr1 > Tr2)*(Tr1 < Ts1)
+            Ts2_vrai = Ts2
+        
+        if Ts2>Ts1 or not Ts2c or m1 <0:
+            #print('Uncovered heat')
+                
+            m1 = self.qmax
+            NUT = UA/(Cp*m2)
+            R = m2/m1
+            E = eff(NUT, R)
+            Ts2_vrai = Tr2 + E*(Ts1-Tr2)
+            Tr1 = Ts1 - (m2/m1)*(Ts2_vrai-Tr2)
+  
+        self.Ts1 = Ts1
+        self.Tr1 = Tr1
+        self.m_dot1 = m1
+        self.Ts2_vrai = Ts2_vrai
 
+SS1bis = [HEXbis(70, 45, 44, 30, 1.6, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 1000), Pipe(lam_i, lam_p, lam_s, 120e-3, 145e-3, 195e-3, z, 50)]
 
-
+NETbis = Network(75, [SS1bis])
         

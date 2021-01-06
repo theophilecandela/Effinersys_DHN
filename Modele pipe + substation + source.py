@@ -3,6 +3,7 @@ from numpy import log as ln
 from matplotlib import pyplot as plt
 from random import gauss
 from itertools import *
+import time
 
 ## Datas
 #Pipe parameters
@@ -303,7 +304,7 @@ class Network:
         self.Ts_nodes = np.copy(Ts_nodes_new)
         self.Tr_nodes = np.copy(Tr_nodes_new)
         
-        #Calculation of the supply temperature heated by the source
+        #Calculation of the supply temperature re-heated by the source
         self.src.solve(self.m_dot, self.returnT)
         self.supplyT = self.src.Ts_Net
         
@@ -325,6 +326,8 @@ def simulation( RES, Ts2_h):
     T_supplySS = []
     T_supply_secondary = []
     T_secondary_demand = []
+    
+    time1 = time.time()
     for j in range(24):
         for p, T_h in enumerate(Ts2_h):
             RES.substations[p][0].Ts2 = T_h[j]
@@ -342,7 +345,7 @@ def simulation( RES, Ts2_h):
             T_supply_secondary.append([X[0].Ts2_vrai for X in RES.substations])
             t_tot += 1
             
-    
+    time2 = time.time()
     plt.figure()
     plt.plot(t, T_return, label = 'Network return temperature at the source')
     for i in range(len(T_return_SS[0])):
@@ -374,6 +377,7 @@ def simulation( RES, Ts2_h):
         plt.legend() 
     
     plt.show()
+    return time2 - time1
     
     
 ##Model parameters
