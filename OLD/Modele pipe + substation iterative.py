@@ -3,7 +3,6 @@ from numpy import log as ln
 from matplotlib import pyplot as plt
 from random import gauss
 from itertools import *
-import time
 
 ## Datas
 #Pipe parameters
@@ -131,6 +130,18 @@ def test_evol_pipe(pipe, T_in, mdot, n):
 def eff(N, R):
     return (1 - np.exp((R-1)*N))/(1-R*np.exp((R-1)*N))
     
+def newton(f, f_prime, x0, eps = 0.0001):
+    x = x0
+    n = 15
+    k = 0
+    while np.abs(f(x)) > eps and k < n:
+        #print(f(x), f_prime(x), x)
+        x = max(0.0001, x - f(x)/f_prime(x))
+        k += 1
+    if k>= n:
+        raise ConvergenceError('Ne converge pas')
+    else:
+        return x
 
 class HEX: 
     #U = constant method
@@ -150,9 +161,10 @@ class HEX:
         self.qmax = qmax   #maximal mass flow going through the heat exchanger
     
     def UA(self):
-        '''calculates the UA in Q = UA.deltaTlog, with the approximation given in J.J.J. Chen, Comments on improvements on a replacement for the logarithmic mean  '''
+        '''calculates the UA in Q = UA.deltaTlog  '''
         a = 0.3275
         Q = Cp * self.m_dot2 * (self.Ts2_vrai - self.Tr2)
+        #deltaTlm = ((self.Ts1-self.Tr1) - (self.Ts2_vrai-self.Tr2))/ln((self.Ts1 - self.Tr1)/(self.Ts2_vrai-self.Tr2))
         deltaTlm = ((self.Ts1-self.Ts2_vrai) - (self.Tr1-self.Tr2))/ln((self.Ts1 - self.Ts2_vrai)/(self.Tr1-self.Tr2))
         UA = Q/deltaTlm
         return UA
@@ -167,98 +179,43 @@ class HEX:
         m2 = self.m_dot2
         Q = Cp * self.m_dot2 * (Ts2 - Tr2)
         m1 = self.qmax
+        
         if Ts2 <= Ts1:
             Tr1 = Tr2 + (2 * (Q/(UA))**a - (Ts1 - Ts2)**a)**(1/a)
             m1 = m2*(Ts2 - Tr2)/(Ts1 - Tr1)
             Ts2c = (Tr1 > Tr2)*(Tr1 < Ts1)
             Ts2_vrai = Ts2
-            
+        
         if Ts2>Ts1 or not Ts2c or m1 > self.qmax:
             #print('Uncovered heat')
+                
             m1 = self.qmax
             NUT = UA/(Cp*m2)
             R = m2/m1
             E = eff(NUT, R)
+            #print(E)
             Ts2_vrai = Tr2 + E*(Ts1-Tr2)
             Tr1 = Ts1 - (m2/m1)*(Ts2_vrai-Tr2)
-            
-        # #Case in which the approximation for DeltaTlm doesn't work
-        # if Ts2_vrai > Ts2: 
-        #     #We use another method
-        #     q = 0.8
-        #     k = Q/(UA* (Ts1 - Ts2))
-        #     
-        #     def f(x):
-        #         return np.exp(k*(x-1)) - x
-
-        #     def f_prime(x):
-        #         return k*np.exp(k*(x-1)) - 1
-        #             
-        #     x0 = (self.Tr1 - Tr2)/(Ts1 -Ts2)
-        #     x1 = newton(f, f_prime, x0)
-        #     #print(x1, f(x1))
-        #     Tr1 = Tr2 + x1 * (Ts1-Ts2)
-        #     m1 = Q/(Cp * (Ts1 - Tr1))
-        #     Ts2_vrai = Ts2
-        
+                
         self.Ts1 = Ts1
         self.Tr1 = Tr1
         self.m_dot1 = m1
         self.Ts2_vrai = Ts2_vrai
         
-## Source
-class Source: #Could herit from HEX?
-    def __init__(self, geoT, geoMdot):
-        self.m_dot = geoMdot
-        self.Ts_Geo= geoT
-        self.Tr_Geo = 55
-        self.Ts_Net = 70
-        self.Tr_Net = 40
-    
-    def UA(self):
-        '''calculates the UA in Q = UA.deltaTlog, with the approximation given in J.J.J. Chen, Comments on improvements on a replacement for the logarithmic mean  '''
-        a = 0.3275
-        Q = Cp * self.m_dot * (self.Ts_Geo - self.Tr_Geo)
-        deltaTlm = ((self.Ts_Geo-self.Tr_Geo) - (self.Ts_Net-self.Tr_Net))/ln((self.Ts_Geo - self.Tr_Geo)/(self.Ts_Net-self.Tr_Net))
-        UA = Q/deltaTlm
-        return UA
-        
-    def solve(self, m_dotNET, TrNET):
-        '''For a secondary side (network side) return temperature and mass flow, calculates the supply temperature of the network'''
-        a = 0.3275
-        UA = self.UA() #Attention si on modifie Ts2 entre l'itération prédente et la nouvelle?
-        if m_dotNET < self.m_dot:
-            NUT = UA/(Cp*m_dotNET)
-            R = m_dotNET/self.m_dot
-            E = eff(NUT, R)
-            self.Ts_Net = self.Tr_Net + E*(self.Ts_Geo - self.Tr_Net)
-            self.Tr_Geo = self.Ts_Geo - R*(self.Ts_Net-self.Tr_Net)
-        
-        else:
-            NUT = UA/(Cp*self.m_dot)
-            R = self.m_dot/m_dotNET
-            E = eff(NUT, R)
-            self.Tr_Geo = self.Ts_Geo - E*(self.Ts_Geo - self.Tr_Net)
-            self.Ts_Net = self.Tr_Net + R*(self.Ts_Geo - self.Tr_Geo)
-            
-        
-            
-        
 ## Réseau
 
 class Network:
-    def __init__(self, inlet_T, source, liste_substations):
-        ''' inlet_T initialization supply Temperature of the network
+    def __init__(self, inlet_T, liste_substations):
+        ''' inlet_T ) initialization supply Temperature of the network
         liste_substations : [HEX, Pipe_nodetopreviousnode, Pipe_hextonode]'''
         self.supplyT = inlet_T
-        self.returnT = 40
+        self.returnT = 0
         self.subm_dot = [X[0].m_dot1 for X in liste_substations]
         self.m_dot = sum([X[0].m_dot1 for X in liste_substations])
         self.Ts_nodes = [X[1].TS_ext() for X in liste_substations]
         self.Tr_nodes = [X[1].TR_ext() for X in liste_substations]
         self.nb_substations =  len(liste_substations)
         self.substations = liste_substations
-        self.src = source
         
         
     def iteration(self):
@@ -285,67 +242,97 @@ class Network:
             p1.evolR_T(m_dotR, Tr_nodes[m])
             Tr_node_network_upstream = p1.TR_ext()
             
+        self.returnT = Tr_node_network_upstream
         
+        save = []
+        for i, (hex, pipe1, pipe2) in enumerate(self.substations):
+            save.append(({'Tr1' : hex.Tr1, 'Ts2_vrai' : hex.Ts2_vrai, 'Ts1' : hex.Ts1}, np.copy(pipe1.pipeS_T), np.copy(pipe2.pipeS_T)))
+        mdot0 = self.m_dot
+        m_dot = mdot0
         for i, (hex, pipe1, pipe2) in enumerate(self.substations):
             #Calculation of Temperatures in the network at time (t+1) (for next iteration)
             pipe1.evolS_T(m_dot, T_node[i])
-            Ts_nodes_new.append(pipe1.TS_ext()) 
-
+            
             #Calculation of the new mass flow and return temperature at substation for time t+1
             m_dotSS = hex.m_dot1
             pipe2.evolS_T(m_dotSS, T_node[i+1])
             Ts1 = pipe2.TS_ext()
             hex.solve(Ts1)
             m_dot -= m_dotSS
+        m_dot1 = sum(X[0].m_dot1 for X in self.substations)
+        n = 0
+        while np.abs(m_dot1 - mdot0) > 0.01 and n<1000:
+            mdot0 = m_dot1
+            #print(mdot0)
+            m_dot = mdot0
+            for i, (hex, pipe1, pipe2) in enumerate(self.substations):
+                hex.Tr1, hex.Ts2_vrai, hex.Ts1 = save[i][0]['Tr1'], save[i][0]['Ts2_vrai'], save[i][0]['Ts1']
+                pipe1.pipeS_T = list(save[i][1])
+                pipe2.pipeS_T = list(save[i][2])
             
-        self.returnT = Tr_node_network_upstream
+            for i, (hex, pipe1, pipe2) in enumerate(self.substations):
+                #Calculation of Temperatures in the network at time (t+1) (for next iteration)
+                
+                pipe1.evolS_T(m_dot, T_node[i])
+                
+                #Calculation of the new mass flow and return temperature at substation for time t+1
+                m_dotSS = hex.m_dot1
+                pipe2.evolS_T(m_dotSS, T_node[i+1])
+                Ts1 = pipe2.TS_ext()
+                hex.solve(Ts1)
+                m_dot -= m_dotSS
+            m_dot1 = sum(X[0].m_dot1 for X in self.substations)
+            n+=1
+        for i, (hex, pipe1, pipe2) in enumerate(self.substations):
+            Ts_nodes_new.append(pipe1.TS_ext()) 
+            
         self.subm_dot = [X[0].m_dot1 for X in self.substations] #substations mass flows at time t+1
         self.m_dot = sum(self.subm_dot) #Network mass flow at time t+1
         self.Ts_nodes = np.copy(Ts_nodes_new)
         self.Tr_nodes = np.copy(Tr_nodes_new)
         
-        #Calculation of the supply temperature re-heated by the source
-        self.src.solve(self.m_dot, self.returnT)
-        self.supplyT = self.src.Ts_Net
-        
 
 ## Simulation
 dx = 90  # spatial discretization step (m)
 dt = 60  # discretization time step (s)
+#Inlet temperature of the network
+Tint = [gauss(60,1) for i in range(24)]
 
-def simulation( RES, Ts2_h):
-    '''Ts2_h:  list of list of temperature per hour (ie scheduled demand for each substation)'''
+def simulation( RES, Ts2_h, Tsupply_h = Tint):
+    '''Ts2_h:  list of list of temperature per hour (ie scheduled demand for each substation)
+    Tsupply_h: list of source water temperature thoughout the day (per hour)'''
     nb_SS = len(Ts2_h)
     t = []
     T_in = []
     t_tot = 0
     m_dot = []
-    mdot_SS = []
     T_return = []
     T_return_SS = []
     T_supplySS = []
+    mdot_SS = []
     T_supply_secondary = []
     T_secondary_demand = []
-    
-    time1 = time.time()
     for j in range(24):
+        RES.supplyT = Tsupply_h[j]
+        print(j)
         for p, T_h in enumerate(Ts2_h):
             RES.substations[p][0].Ts2 = T_h[j]
         
         for m in range(60):
             RES.iteration()
+            #print(j, Tsupply_h[j], RES.m_dot, RES.substations[0][0].Ts1, RES.substations[0][0].Tr1, RES.substations[0][0].Ts2_vrai)
             t.append(t_tot)
             T_in.append(RES.supplyT)
             T_return.append(RES.returnT)
             T_return_SS.append([X[0].Tr1 for X in RES.substations])
             T_supplySS.append([X[0].Ts1 for X in RES.substations])
-            m_dot.append(RES.m_dot)
             mdot_SS.append([X[0].m_dot1 for X in RES.substations])
+            m_dot.append(RES.m_dot)
             T_secondary_demand.append([X[0].Ts2 for X in RES.substations])
             T_supply_secondary.append([X[0].Ts2_vrai for X in RES.substations])
             t_tot += 1
             
-    time2 = time.time()
+    
     plt.figure()
     plt.plot(t, T_return, label = 'Network return temperature at the source')
     for i in range(len(T_return_SS[0])):
@@ -353,7 +340,6 @@ def simulation( RES, Ts2_h):
     plt.legend()
     
     plt.figure()
-
     plt.plot(t, m_dot, label = 'total Network mass flow')
     for i in range(len(mdot_SS[0])):
         plt.plot(t, [a[i] for a in mdot_SS], label= f'mass flow {i}')
@@ -371,16 +357,15 @@ def simulation( RES, Ts2_h):
         plt.plot(t, [a[i] for a in T_secondary_demand], label = 'T_secondary_demand')
         plt.plot(t, [a[i] for a in T_supplySS], label = 'T_supply SS network side')
         plt.plot(t, [a[i] for a in T_return_SS], label = 'T_return SS network side')
-        plt.legend()     
-        plt.figure()
-        plt.plot(t, [np.abs(a[i] - b[i]) for a, b in zip(T_supply_secondary,T_secondary_demand) ], label = f'Secondary supply default {i}')
+        plt.legend()   
+        # plt.figure()
+        # plt.plot(t, [np.abs(a[i] - b[i]) for a, b in zip(T_supply_secondary,T_secondary_demand) ], label = 'Secondary supply default')
         plt.legend() 
     
     plt.show()
-    return time2 - time1
     
+    return mdot_SS
     
-##Model parameters
 #Inlet temperature of the network
 Tint = [gauss(75,4) for i in range(24)]
 #Temperature demand (profiles)
@@ -388,6 +373,7 @@ Ts2_1 = [41, 38, 37, 37, 40, 47, 52, 49, 45, 43, 42, 43, 46, 45, 41, 42, 42, 43,
 
 Ts2_2 = [42, 42.5, 43, 43.5, 44, 48.5, 53, 53, 52, 52, 50, 49, 48,47, 46.5, 46, 49, 49.5, 48, 49, 49.5, 50, 50, 42]
 Ts2_2bis = [x - 3 for x in Ts2_2]
+
 Ts2_3 = [41, 38, 37, 37, 40, 44, 48, 47, 40, 39, 39, 38.5, 39, 39.5, 39, 38.5, 39.5, 39, 50, 49.5, 49, 46, 46, 42]
 
 noise = [gauss(0,2) for i in range(24)]
@@ -396,28 +382,32 @@ t = [i for i in range(24)]
 Tr2 = 30
 m_dot2 = 1.6
     
-#Model components
-SS1 = [HEX(70, 45, 44, 28, 1.6, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 1000), Pipe(lam_i, lam_p, lam_s, 120e-3, 145e-3, 195e-3, z, 50)]
-SS2 = [HEX(70, 45, 44, 32, 1.8, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 1000), Pipe(lam_i, lam_p, lam_s, 120e-3, 145e-3, 195e-3, z, 50)]
-SS3 = [HEX(70, 45, 44, 25, 1.8, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 500), Pipe(lam_i, lam_p, lam_s, 120e-3, 145e-3, 195e-3, z, 50)]
+    
+SS1 = [HEX(70, 45, 44, 30, 1.6, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 1000), Pipe(lam_i, lam_p, lam_s, 120e-3, 145e-3, 195e-3, z, 50)]
+SS2 = [HEX(70, 45, 44, 25, 1.8, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 500), Pipe(lam_i, lam_p, lam_s, 120e-3, 145e-3, 195e-3, z, 50)]
+SS3 = [HEX(70, 45, 44, 28, 1.8, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 2500), Pipe(lam_i, lam_p, lam_s, 120e-3, 145e-3, 195e-3, z, 50)]
 
-SRC1 = Source(70, 20)
-
-NET = Network(75, SRC1, [SS1])
-NET2 = Network(75, SRC1, [SS1, SS2])
-NET3 = Network(75, SRC1, [SS1, SS2, SS3])
+NET = Network(75, [SS1])
+NET2 = Network(75, [SS1, SS2])
+NET3 = Network(75, [SS1, SS2, SS3])
 
 
 #simulation(NET3, [Ts2_1, Ts2_2, Ts2_3])
 #simulation(NET3, [Ts2_1, Ts2_2bis, Ts2_3])
 
 
+Tint_ex = [76.37741580767583, 70.67360814840485, 72.3122451540432, 71.35627591617609, 76.94112741350989, 72.42738394574457, 66.63829219201212, 80.32575998056362, 74.18750133177188, 69.44646535420992, 77.42718101691612, 71.56282299384785, 75.1517961286074, 76.37447631619507, 73.76642389072715, 73.54049297817589, 75.18007288455654, 79.23734429473612, 76.86632770124949, 77.23497612889969, 68.41695695025551, 72.28831750512734, 80.15883394386321, 76.43781931244474]
 
 
 
-
-
-
-
+##Comparison with non-iterative solution:
+run both model on Tint_ex
+# mdota = simulation(NET3, [Ts2_1, Ts2_2, Ts2_3], Tsupply_h = Tint_ex)
+# t, mdotb = simulation(NET3, [Ts2_1, Ts2_2, Ts2_3], Tsupply_h = Tint_ex)
+# plt.figure()
+# for i in range(len(mdota[0])):
+#     plt.plot(t, [(a[i] - b[i]) for a, b in zip(mdota,mdotb)], label = f'{i}')
+# plt.legend()
+# plt.show()
 
         
