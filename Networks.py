@@ -195,10 +195,12 @@ class Network_boiler(Network):
         self.returnT = Tr_node_network_upstream
         
         #SUPPLY SIDE
-        if self.boiler:
-            supplyT_reheated = self.supplyT + self.P_boiler/(Cp * m_dot)
-            T_node[0] = supplyT_reheated
-            
+        save = [] #Initial conditions
+        for i, (hex, pipe1, pipe2) in enumerate(self.substations):
+            save.append(({'Tr1' : hex.Tr1, 'Ts2_vrai' : hex.Ts2_vrai, 'Ts1' : hex.Ts1, 'm1':hex.m_dot1}, np.copy(pipe1.pipeS_T), np.copy(pipe2.pipeS_T)))
+        mdot0 = self.m_dot
+        m_dot = mdot0
+        
         BoilerOn = False
         for i, (hex, pipe1, pipe2) in enumerate(self.substations):
             #Calculation of Temperatures in the network at time (t+1) (for next iteration)
@@ -213,9 +215,32 @@ class Network_boiler(Network):
             m_dot -= m_dotSS
             
             #Boiler Ignition
-            if (hex.Ts2 - hex.Ts2_vrai) > 2:
+            if (hex.Ts2 - hex.Ts2_vrai) > 1:
                 BoilerOn = True
+        
+        if BoilerOn:
+            m_dot = mdot0
+            supplyT_reheated = self.supplyT + self.P_boiler/(Cp * m_dot)
+            T_node[0] = supplyT_reheated
+            Ts_nodes_new = []
+            
+            for i, (hex, pipe1, pipe2) in enumerate(self.substations):
+                hex.Tr1, hex.Ts2_vrai, hex.Ts1, hex.m_dot1 = save[i][0]['Tr1'], save[i][0]['Ts2_vrai'], save[i][0]['Ts1'], save[i][0]['m1']
+                pipe1.pipeS_T = list(save[i][1])
+                pipe2.pipeS_T = list(save[i][2])
                 
+            for i, (hex, pipe1, pipe2) in enumerate(self.substations):
+                #Calculation of Temperatures in the network at time (t+1) (for next iteration)
+                pipe1.evolS_T(m_dot, T_node[i])
+                Ts_nodes_new.append(pipe1.TS_ext()) 
+    
+                #Calculation of the new mass flow and return temperature at substation for time t+1
+                m_dotSS = hex.m_dot1
+                pipe2.evolS_T(m_dotSS, T_node[i+1])
+                Ts1 = pipe2.TS_ext()
+                hex.solve(Ts1)
+                m_dot -= m_dotSS
+            
         self.boiler = BoilerOn
         self.subm_dot = [X[0].m_dot1 for X in self.substations] #substations mass flows at time t+1
         self.m_dot = sum(self.subm_dot) #Network mass flow at time t+1

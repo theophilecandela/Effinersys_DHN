@@ -139,8 +139,8 @@ NET = Network(SRC1, [SS1])
 NET2 = Network(SRC1, [SS1, SS2])
 NET3 = Network(SRC1, [SS1, SS2, SS3])
 
-
-
+NETb = Network_boiler(SRC1, 265000/3, [SS1])
+NETb3 = Network_boiler(SRC1, 265000, [SS1, SS2, SS3])
 
 #simulation(NET3, [Ts2_1, Ts2_2, Ts2_3])
 #simulation(NET3, [Ts2_1, Ts2_2bis, Ts2_3])
