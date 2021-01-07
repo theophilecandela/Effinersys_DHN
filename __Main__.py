@@ -1,6 +1,7 @@
 import numpy as np
 from numpy import log as ln
 from matplotlib import pyplot as plt
+import math
 from random import gauss
 from itertools import *
 import time
@@ -29,17 +30,18 @@ def simulation(RES, Ts2_h):
     T_supply_secondary = []
     T_secondary_demand = []
     P_source = []
+    P_boiler = []
     
     #SIMULATION
-    # First loop for initialisation
-    if not RES.alreadyrun:
-        RES.alreadyrun = True
-        for j in range(24):
-            for p, T_h in enumerate(Ts2_h):
-                RES.substations[p][0].Ts2 = T_h[j]
-            
-            for m in range(60):
-                RES.iteration()
+    # # First loop for initialisation
+    # if not RES.alreadyrun:
+    #     RES.alreadyrun = True
+    #     for j in range(24):
+    #         for p, T_h in enumerate(Ts2_h):
+    #             RES.substations[p][0].Ts2 = T_h[j]
+    #         
+    #         for m in range(60):
+    #             RES.iteration()
             
     time1 = time.time()
     for j in range(24):
@@ -58,7 +60,8 @@ def simulation(RES, Ts2_h):
             T_secondary_demand.append([X[0].Ts2 for X in RES.substations])
             T_supply_secondary.append([X[0].Ts2_vrai for X in RES.substations])
             P_source.append(Cp*RES.src.m_dot*(RES.src.Ts_Geo - RES.src.Tr_Geo))
-            
+            if RES.NETtype == 'boiler':
+                P_boiler.append(RES.boiler * RES.P_boiler)
             t_tot += 1
             
     time2 = time.time()
@@ -106,6 +109,7 @@ def simulation(RES, Ts2_h):
     plt.figure()
     plt.title('Source Power (kW)')
     plt.plot(t, [x/1000 for x in P_source], label = 'Geothermal Source' )
+    plt.plot(t, [x/1000 for x in P_boiler], label = 'Gas boiler')
     plt.legend() 
     
     plt.show()
@@ -141,6 +145,38 @@ NET3 = Network(SRC1, [SS1, SS2, SS3])
 
 NETb = Network_boiler(SRC1, 265000/3, [SS1])
 NETb3 = Network_boiler(SRC1, 265000, [SS1, SS2, SS3])
+NETb3bis = Network_boiler(SRC1, 300000, [SS1, SS2, SS3])
 
 #simulation(NET3, [Ts2_1, Ts2_2, Ts2_3])
 #simulation(NET3, [Ts2_1, Ts2_2bis, Ts2_3])
+
+
+        
+        
+def test(hex):
+    a = 0.3275
+    Tr1, Ts2_vrai, Ts2, mdot = hex.Tr1, hex.Ts2_vrai,hex.Ts2, hex.m_dot1
+    Q = Cp * hex.m_dot2 * (Ts2 - hex.Tr2)
+    UA = hex.UA()
+    TS1 = hex.Ts1
+    A = []
+    b = []
+    print(UA)
+    
+    l = np.linspace(Ts2 + 10, Ts2 + 100)
+    #print(l)
+    for Ts1 in l:
+        A.append(2 *(Q/(UA))**a - (Ts1 - Ts2)**a)
+        b.append(Ts1 - Ts2)
+    plt.figure()
+    plt.plot(b, A)    
+
+    c = []
+    d = []
+    for Ts2 in np.linspace(Ts2_vrai -5, Ts2_vrai + 15 ):
+        c.append(2 * (Q/(UA))**a - (TS1 - Ts2)**a)
+        d.append(TS1 - Ts2)
+    plt.figure()
+    plt.plot(d, c)    
+
+    plt.show()

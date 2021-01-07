@@ -33,3 +33,15 @@ dt = 60  #discretization time step (s)
 ##Functions
 def eff(N, R):
     return (1 - np.exp((R-1)*N))/(1-R*np.exp((R-1)*N))
+    
+def newton(f, f_prime, x0, eps = 0.0001):
+    x = x0
+    n = 15
+    k = 0
+    while np.abs(f(x)) > eps and k < n:
+        x = max(0.001, x - f(x)/f_prime(x))
+        k += 1
+    if k>= n:
+        raise ValueError('Ne converge pas')
+    else:
+        return x

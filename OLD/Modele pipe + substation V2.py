@@ -396,7 +396,8 @@ T_int_adaptivesupply = [60, 60, 60, 60, 60, 70, 73, 79, 80, 85, 87, 84, 83, 80, 
 ## Test pb stability of the model (supplied T > demand), trying to solve it with physical model instead of mathematical approximation
 
 Ts2_5 = [37, 37, 37, 37, 37, 39, 42, 48, 48, 49, 50, 49, 50, 49, 47, 44, 41, 39, 37, 37, 37, 37, 37, 37]
-
+SS1bis = [HEXbis(70, 45, 44, 30, 1.6, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 1000), Pipe(lam_i, lam_p, lam_s, 120e-3, 145e-3, 195e-3, z, 50)]
+NETbis = Network(75, [SS1bis])
 
 
 class HEXbis(HEX):
@@ -413,7 +414,7 @@ class HEXbis(HEX):
         
         if Ts2 <= Ts1:
             q = 0.8
-            kA = UA*(m1**(-q) + m2**(-q))
+            kA = UA*(self.m_dot1**(-q) + m2**(-q))
             Q1 = Q/(Ts1 - Ts2)
             Q2 = Q/(Cp * (Ts2 - Tr2))
             c1 = kA*(Q2**q)
