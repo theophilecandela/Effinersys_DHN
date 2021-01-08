@@ -60,7 +60,7 @@ class Network:
             
     def iteration(self):
         '''we consider that mass flow is established much faster than temperature flow''' #?
-
+        
         #RETURN SIDE
         self.iter_returnside()
         #SUPPLY SIDE
