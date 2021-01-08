@@ -16,6 +16,14 @@ from Components.Ressources import *
 dx = 90  # spatial discretization step (m)
 dt = 60  # discretization time step (s)
 ##Simulation
+def initialise(NET):
+    '''init = list->tuple(dict{'Tr1' : hex.Tr1, 'Ts2_vrai' : hex.Ts2_vrai, 'Ts1' : hex.Ts1}, pipe1.pipeS_T, pipe2.pipeS_T)''' #En réalité le dict ne sert pas à grand chose puisque ce sont des variables que l'on ajuste lors de l'initialisation
+    
+    for i, (hex, pipe1, pipe2) in enumerate(NET.substations):
+        hex.Tr1, hex.Ts2_vrai, hex.Ts1 = init[i][0]['Tr1'], init[i][0]['Ts2_vrai'], init[i][0]['Ts1']
+        pipe1.pipeS_T = list(init[i][1]) #Temperature en Kelvin!
+        pipe2.pipeS_T = list(init[i][2])
+
 def simulation(RES, Ts2_h):
     '''Ts2_h:  list of list of temperature per hour (ie scheduled demand for each substation)'''
     nb_SS = len(Ts2_h)
@@ -109,7 +117,8 @@ def simulation(RES, Ts2_h):
     plt.figure()
     plt.title('Source Power (kW)')
     plt.plot(t, [x/1000 for x in P_source], label = 'Geothermal Source' )
-    plt.plot(t, [x/1000 for x in P_boiler], label = 'Gas boiler')
+    if RES.NETtype == 'boiler':
+        plt.plot(t, [x/1000 for x in P_boiler], label = 'Gas boiler')
     plt.legend() 
     
     plt.show()
@@ -152,12 +161,13 @@ NETb3bis = Network_boiler(SRC1, 300000, [SS1, SS2, SS3])
 
 
         
-        
+
 def test(hex):
     a = 0.3275
     Tr1, Ts2_vrai, Ts2, mdot = hex.Tr1, hex.Ts2_vrai,hex.Ts2, hex.m_dot1
     Q = Cp * hex.m_dot2 * (Ts2 - hex.Tr2)
     UA = hex.UA()
+    print(UA)
     TS1 = hex.Ts1
     A = []
     b = []
