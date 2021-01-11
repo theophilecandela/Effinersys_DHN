@@ -58,6 +58,7 @@ class Network:
             hex.solve(Ts1)
             m_dot -= m_dotSS
             
+            
     def iteration(self):
         '''we consider that mass flow is established much faster than temperature flow''' #?
         
@@ -130,6 +131,45 @@ class Network_iter(Network):
         
     
     
+class Network_bOptim(Network):
+    def __init__(self, source, P_boiler, liste_substations):
+        Network.__init__(self, source, liste_substations)
+        self.NETtype = 'Optim_boiler'
+        self.P_boiler = P_boiler
+        self.P_Geo = 0
+        self.P_demand = 0
+        self.P_supplied = 0
+        self.supply_default_SS = []
+        
+    def iter_supplyside(self):
+        m_dot = self.m_dot
+        
+        supplyT_reheated = self.supplyT + self.P_boiler/(Cp * m_dot)
+        T_node = [supplyT_reheated] + list(self.Ts_nodes)
+            
+        self.P_Geo = self.src.P
+        self.P_demand = 0
+        self.P_supplied = 0
+        self.supply_default_SS = []
+        
+        for i, (hex, pipe1, pipe2) in enumerate(self.substations):
+            #Calculation of Temperatures in the network at time (t+1) (for next iteration)
+            pipe1.evolS_T(m_dot, T_node[i])
+            
+            #Calculation of the new mass flow and return temperature at substation for time t+1
+            m_dotSS = hex.m_dot1
+            pipe2.evolS_T(m_dotSS, T_node[i+1])
+            Ts1 = pipe2.TS_ext()
+            hex.solve(Ts1)
+            m_dot -= m_dotSS
+            
+            Pd = hex.m_dot2 * Cp * (hex.Ts2 - hex.Tr2)
+            Ps = hex.m_dot2 * Cp * (hex.Ts2_vrai - hex.Tr2)
+            self.supply_default_SS.append(Pd - Ps)
+            self.P_demand += Pd
+            self.P_supplied += Ps
+            
+        
 class Network_boiler(Network):
     def __init__(self, source, P_boiler, liste_substations):
         Network.__init__(self, source, liste_substations)

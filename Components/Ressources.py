@@ -26,6 +26,15 @@ R_int = 200e-3
 R_p = 250e-3
 R_i = 400e-3
 
+
+#cost-kilowatt-hour
+efficiency_gaz = 0.6
+CarbonperkWh = 490 #g
+carbonTtaxe = 50 #€
+C_kWh = 1/efficiency_gaz * CarbonperkWh*(10**(-6)) * 50
+
+
+
 #Numerical parameters
 dx = 90  #spatial discretization step (m)
 dt = 60  #discretization time step (s)

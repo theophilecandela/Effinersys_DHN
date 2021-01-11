@@ -10,6 +10,7 @@ class Source:
         self.Tr_Geo = 55
         self.Ts_Net = 70
         self.Tr_Net = 40
+        self.P = (geoT - 55)*geoMdot*Cp
     
     def UA(self):
         '''calculates the UA in Q = UA.deltaTlog, with the approximation given in J.J.J. Chen, Comments on improvements on a replacement for the logarithmic mean  '''
@@ -36,4 +37,5 @@ class Source:
             E = eff(NUT, R)
             self.Tr_Geo = self.Ts_Geo - E*(self.Ts_Geo - self.Tr_Net)
             self.Ts_Net = self.Tr_Net + R*(self.Ts_Geo - self.Tr_Geo)
-            
+        
+        self.P = (self.Ts_Geo - self.Tr_Geo)*self.m_dot*Cp
