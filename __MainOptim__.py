@@ -27,11 +27,11 @@ class Simulation():
         self.nb_SS = len(Ts2_h)
         
         self.t = []
-        self.P_source = []
-        self.P_boiler = []
-        self.P_demand = []
-        self.P_supplied = []
-        self.supply_default_SS = []
+        self.E_Geo = 0
+        self.E_boiler = 0
+        self.E_default = 0
+        
+        self.cost_Tdefault_SS = [0] * self.nb_SS
         
         self.initialised = False
         self.save_init_ = []
@@ -53,7 +53,7 @@ class Simulation():
             self.save_init_ = [self.RES.supplyT, self.RES.m_dot, self.RES.returnT] #Initial conditions
             save =  []
             for i, (hex, pipe1, pipe2) in enumerate(self.RES.substations):
-                save.append(({'Tr1' : hex.Tr1, 'Ts2_vrai' : hex.Ts2_vrai, 'Ts1' : hex.Ts1, 'm1':hex.m_dot1}, np.copy(pipe1.pipeS_T), np.copy(pipe2.pipeS_T)))
+                save.append(({'Tr1' : hex.Tr1, 'Ts2_vrai' : hex.Ts2_vrai, 'Ts1' : hex.Ts1, 'm1':hex.m_dot1}, np.copy(pipe1.pipeS_T), np.copy(pipe2.pipeS_T), np.copy(pipe1.pipeR_T), np.copy(pipe2.pipeR_T) ))
             self.save_init_.append(save)
             
         else:
@@ -66,21 +66,25 @@ class Simulation():
                 hex.Tr1, hex.Ts2_vrai, hex.Ts1, hex.m_dot1 = save[i][0]['Tr1'], save[i][0]['Ts2_vrai'], save[i][0]['Ts1'], save[i][0]['m1']
                 pipe1.pipeS_T = list(save[i][1])
                 pipe2.pipeS_T = list(save[i][2])
+                pipe1.pipeR_T = list(save[i][3])
+                pipe2.pipeR_T = list(save[i][4])
                 
                 
     def simulation(self, P_boiler_instruction):
         self.initialisation()
         
         nbiter_instruc = len(self.t)//len(P_boiler_instruction)
-        self.P_source = []
-        self.P_boiler = []
-        self.P_demand = []
-        self.P_supplied = []
-        self.supply_default_SS = []
+        self.E_Geo = 0
+        self.E_boiler = 0
+        self.E_default = 0
+        self.cost_Tdefault_SS = [0] * self.nb_SS
         
         time1 = time.time()
         t_tot = 0
         i_instruct = 0
+        
+        t_unsupplied = [0] * self.nb_SS
+        
         for j in range(24):
             for p, T_h in enumerate(self.Ts2_h):
                 self.RES.substations[p][0].Ts2 = T_h[j]
@@ -92,11 +96,19 @@ class Simulation():
                     
                 self.RES.iteration()
 
-                self.P_source.append(self.RES.P_Geo)
-                self.P_boiler.append(self.RES.P_boiler)
-                self.P_demand.append(self.RES.P_demand)
-                self.P_supplied.append(self.RES.P_supplied)
-                self.supply_default_SS.append(self.RES.supply_default_SS)
+                self.E_Geo += self.RES.P_Geo
+                self.E_boiler += self.RES.P_boiler
+                self.E_default += self.RES.P_supplied - self.RES.P_demand
+                
+                #Calculation of the cost of supply default at time t
+                for i, Tdefault in enumerate(self.RES.Tsupply_default_SS):
+                    if Tdefault <= 10**(-5):
+                        t_unsupplied[i] = t_tot
+                    else:
+                        ct = 1/(1 + np.exp((-2/10)*((t_tot - t_unsupplied[i]) -15)))
+                        cT = 1/(1 + np.exp((-3/2)*(Tdefault -1.5)))
+                    
+                        self.cost_Tdefault_SS[i] += ct*cT
                 
                 t_tot+= 1
                 
@@ -107,29 +119,20 @@ class Simulation():
         self.simulation(P_boiler_instruction)
         
         #kilowatt-hour
-        E_boiler = sum(self.P_boiler)/60
-        E_Geo = sum(self.P_source)/60
+        E_boiler = self.E_boiler/60
+        E_Geo = self.E_Geo/60
         E_tot = E_boiler + E_Geo
-        E_default = (sum(self.P_supplied) - sum(self.P_demand))/60
+        E_default = self.E_default/60
         
         C1 = E_boiler/(E_tot) #* C_kWh * E_boiler
         
-        C2 = 0
-        for i_SS in range(len(self.supply_default_SS[0])):
-            C_SS = 0
-            t1 = 0
-            for t, defaultP in enumerate([x[i_SS] for x in self.supply_default_SS]):
-                if defaultP <= 10**(-10):
-                    t1 = t
-                else:
-                    C_SS += np.exp(((t - t1)/30)**2) * defaultP/60
-            C2 += C_SS
+        C2 = sum(self.cost_Tdefault_SS)/(len(self.t)*self.nb_SS)
+
         #print(C1, C2)
-        #print(C1)
         
         time2 = time.time()
         #print(time2-time1)
-        return C1 #+ C2
+        return C1 + C2
         
     
     def plot(self, P_boiler_instruction):
@@ -181,6 +184,8 @@ class Simulation():
             plt.plot(t, [np.abs(a[i] - b[i]) for a, b in zip(T_supply_secondary,T_secondary_demand) ], label = f'Secondary supply default SS_{i}')
         plt.legend()
         
+        plt.show()
+        
         
     
     
@@ -217,7 +222,7 @@ SRC1 = Source(70, 20)
 # NETb3bis = Network_boiler(SRC1, 300000, [SS1, SS2, SS3])
 
 Boilerexemple = [88333 * (x - 42)/(53-42) for x in Ts2_2]
-
+Bex = [x*1.4 for x in Boilerexemple]
 
 NET = Network_bOptim(SRC1, 0, [SS1])
 NET3 = Network_bOptim(SRC1, 0, [SS1, SS2, SS3])
@@ -229,13 +234,14 @@ NET3 = Network_bOptim(SRC1, 0, [SS1, SS2, SS3])
 A1 = Simulation(NET, [Ts2_2])
 A3 = Simulation(NET3,[Ts2_1, Ts2_2, Ts2_3])
 
-varbound=np.array([[0,90000]]*24)
-model=ga(function=A1.objective_function,dimension=24,variable_type='int',variable_boundaries=varbound)
-model.max_num_iteration = 30
-model.population_size = 50
-model.max_iteration_without_improv = 5
-#model.algorithm_parameters['max_num_iteration'] = 30
-#model.algorithm_parameters['population_size'] = 50
-#model.algorithm_parameters['max_iteration_without_improv'] = 10
+algorithm_param={'max_num_iteration': 50, 'population_size': 50, 'mutation_probability': 0.1, 'elit_ratio': 0.01, 'crossover_probability': 0.5, 'parents_portion': 0.3, 'crossover_type': 'uniform', 'max_iteration_without_improv': 15}
 
-#algorithm_parameters={'max_num_iteration': None, 'population_size': 100, 'mutation_probability': 0.1, 'elit_ratio': 0.01, 'crossover_probability': 0.5, 'parents_portion': 0.3, 'crossover_type': 'uniform', 'max_iteration_without_improv': None}
+varbound=np.array([[0,90000]]*24)
+model=ga(function=A1.objective_function,dimension=24,variable_type='int',variable_boundaries=varbound, algorithm_parameters=algorithm_param)
+
+# varbound=np.array([[90000,90001]]*3)
+# model=ga(function=A1.objective_function,dimension=3,variable_type='int',variable_boundaries=varbound, algorithm_parameters=algorithm_param)
+
+
+
+

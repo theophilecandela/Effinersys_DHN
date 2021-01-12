@@ -139,7 +139,7 @@ class Network_bOptim(Network):
         self.P_Geo = 0
         self.P_demand = 0
         self.P_supplied = 0
-        self.supply_default_SS = []
+        self.Tsupply_default_SS = []
         
     def iter_supplyside(self):
         m_dot = self.m_dot
@@ -150,7 +150,7 @@ class Network_bOptim(Network):
         self.P_Geo = self.src.P
         self.P_demand = 0
         self.P_supplied = 0
-        self.supply_default_SS = []
+        self.Tsupply_default_SS = []
         
         for i, (hex, pipe1, pipe2) in enumerate(self.substations):
             #Calculation of Temperatures in the network at time (t+1) (for next iteration)
@@ -165,7 +165,7 @@ class Network_bOptim(Network):
             
             Pd = hex.m_dot2 * Cp * (hex.Ts2 - hex.Tr2)
             Ps = hex.m_dot2 * Cp * (hex.Ts2_vrai - hex.Tr2)
-            self.supply_default_SS.append(Pd - Ps)
+            self.Tsupply_default_SS.append(hex.Ts2 - hex.Ts2_vrai)
             self.P_demand += Pd
             self.P_supplied += Ps
             
