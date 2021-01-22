@@ -140,12 +140,15 @@ class Network_bOptim(Network):
         self.P_demand = 0
         self.P_supplied = 0
         self.Tsupply_default_SS = []
+        self.maxT = 0
         
     def iter_supplyside(self):
+        self.maxT = 0
         m_dot = self.m_dot
         
         supplyT_reheated = self.supplyT + self.P_boiler/(Cp * m_dot)
         T_node = [supplyT_reheated] + list(self.Ts_nodes)
+        self.maxT = supplyT_reheated
             
         self.P_Geo = self.src.P
         self.P_demand = 0

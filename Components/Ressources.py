@@ -54,3 +54,4 @@ def newton(f, f_prime, x0, eps = 0.0001):
         raise ValueError('Ne converge pas')
     else:
         return x
+        

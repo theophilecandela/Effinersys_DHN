@@ -29,6 +29,8 @@ class HEX:
         deltaTlm = ((1/2)*((self.Ts1-TS2)**a + (self.Tr1-self.Tr2)**a))**(1/a)
         #deltaTlm_vrai = ((self.Ts1-TS2) - (self.Tr1-self.Tr2))/ln((self.Ts1 - TS2)/(self.Tr1-self.Tr2))
         UA = Q/deltaTlm
+        
+        #print(Q,deltaTlm, self.m_dot1, UA)
         return UA
         
     def solve(self, Ts1):
@@ -47,10 +49,15 @@ class HEX:
             
             #if approximation does not give an intended result
             if math.isnan(Tr1):
-                raise ValueError('Tr1 is NaN')
+                #print((Q/(UA)),  Ts1 , Ts2)
+                #print('____________________')
+                #print((Q/(UA)),  Ts1 - Ts2)
+                #Tr1 = Tr2 + (2 * (Q/(UA))**(1/3) - (Ts1 - Ts2)**(1/3))**(3)
+                #print(Tr1, Tr2, Ts1)
+                raise ValueError(((Ts1 - Ts2)/(Q/(UA)))/(15/3.5))#('Tr1 is NaN')
 
             Ts2c = (Tr1 > Tr2)*(Tr1 < Ts1)
-            Ts2_vrai = Ts2
+        Ts2_vrai = Ts2
                 
         if Ts2>Ts1 or not Ts2c or m1 > self.qmax:
             #print('Uncovered heat')
@@ -58,12 +65,45 @@ class HEX:
             NUT = UA/(Cp*m2)
             R = m2/m1
             E = eff(NUT, R)
-            
+            #print(E)
             Ts2_vrai = Tr2 + E*(Ts1-Tr2)
             Tr1 = Ts1 - (m2/m1)*(Ts2_vrai-Tr2)
 
-        self.Ts1 = Ts1
         self.Tr1 = Tr1
         self.m_dot1 = m1
         self.Ts2_vrai = Ts2_vrai
+        self.Ts1 = Ts1
+        
+class HEX_nom(HEX):
+    def __init__(self, Qnom, Tr2, f_Ts2, hnom, deltaTlm_nom , qmax):
+        mdot_2 = Qnom/(Cp * (f_Ts2(-7) - Tr2))
+        UAnom = Qnom/deltaTlm_nom
+        Unom = hnom/2
+        self.Aex = UAnom/Unom
+        self.hnom = hnom
+        self.Ts1 = f_Ts2(-7) + 3
+        
+        self.f_Ts2 = f_Ts2
+        self.Ts2 = f_Ts2(-7)
+        self.Ts2_vrai = f_Ts2(-7) #Ts2_vrai == Ts2 unless uncovered heat 
+        self.Tr2 = Tr2
+        self.m_dot2 = mdot_2
+        self.m_dot1 = mdot_2
+        self.qmax = qmax 
+
+        if self.Ts1 - self.Ts2 > deltaTlm_nom:
+            x0 = deltaTlm_nom/2
+        elif self.Ts1 - self.Ts2 < deltaTlm_nom:
+            x0 = 2*deltaTlm_nom
+        f = lambda x: (x - deltaTlm_nom*ln(x) - (self.Ts1 - self.Ts2 - deltaTlm_nom*ln(self.Ts1 - self.Ts2)))
+        f_prime = lambda x: 1 - deltaTlm_nom/x
+        self.Tr1 = Tr2 + newton(f, f_prime, x0)
+        
+    def UA(self):
+        '''calculates the UA in Q = UA.deltaTlog, with the approximation given in J.J.J. Chen, Comments on improvements on a replacement for the logarithmic mean  '''
+        U = self.hnom*self.m_dot2**0.8/((self.m_dot2/self.m_dot1)**0.8 + 1)
+        UA = U*self.Aex
+        #print(self.m_dot1, UA)
+        return UA
+        
         
