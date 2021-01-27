@@ -36,8 +36,8 @@ C_kWh = 1/efficiency_gaz * CarbonperkWh*(10**(-6)) * 50
 
 
 #Numerical parameters
-dx = 90  #spatial discretization step (m)
-dt = 60  #discretization time step (s)
+dx = 90 #spatial discretization step (m)
+dt = 300 #discretization time step (s)
 
 ##Functions
 def eff(N, R):
