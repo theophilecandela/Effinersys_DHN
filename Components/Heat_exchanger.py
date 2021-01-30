@@ -37,7 +37,7 @@ class HEX:
         '''For a primary side supply temperature, calculates the return temperature and primary side mass flow, as well as determining whether the network can cover the heat demand'''
         a = 0.3275
         Ts2c = True
-        UA = self.UA() #Attention si on modifie Ts2 entre l'itération prédente et la nouvelle?
+        UA = self.UA() 
         Ts2 = self.Ts2
         Tr2 = self.Tr2
         m2 = self.m_dot2
@@ -49,23 +49,16 @@ class HEX:
             
             #if approximation does not give an intended result
             if math.isnan(Tr1):
-                #print((Q/(UA)),  Ts1 , Ts2)
-                #print('____________________')
-                #print((Q/(UA)),  Ts1 - Ts2)
-                #Tr1 = Tr2 + (2 * (Q/(UA))**(1/3) - (Ts1 - Ts2)**(1/3))**(3)
-                #print(Tr1, Tr2, Ts1)
-                raise ValueError(((Ts1 - Ts2)/(Q/(UA)))/(15/3.5))#('Tr1 is NaN')
+                raise ValueError(((Ts1 - Ts2)/(Q/(UA)))/(15/3.5))
 
             Ts2c = (Tr1 > Tr2)*(Tr1 < Ts1)
         Ts2_vrai = Ts2
                 
         if Ts2>Ts1 or not Ts2c or m1 > self.qmax:
-            #print('Uncovered heat')
             m1 = self.qmax
             NUT = UA/(Cp*m2)
             R = m2/m1
             E = eff(NUT, R)
-            #print(E)
             Ts2_vrai = Tr2 + E*(Ts1-Tr2)
             Tr1 = Ts1 - (m2/m1)*(Ts2_vrai-Tr2)
 
@@ -90,7 +83,8 @@ class HEX_nom(HEX):
         self.m_dot2 = mdot_2
         self.m_dot1 = mdot_2
         self.qmax = qmax 
-
+        
+        #Why? We do know Q, m_dot and Ts1
         if self.Ts1 - self.Ts2 > deltaTlm_nom:
             x0 = deltaTlm_nom/2
         elif self.Ts1 - self.Ts2 < deltaTlm_nom:
@@ -103,7 +97,6 @@ class HEX_nom(HEX):
         '''calculates the UA in Q = UA.deltaTlog, with the approximation given in J.J.J. Chen, Comments on improvements on a replacement for the logarithmic mean  '''
         U = self.hnom*self.m_dot2**0.8/((self.m_dot2/self.m_dot1)**0.8 + 1)
         UA = U*self.Aex
-        #print(self.m_dot1, UA)
         return UA
         
         

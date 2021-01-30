@@ -6,155 +6,167 @@ from random import gauss
 from itertools import *
 import time
 
-from Networks import *
+from geneticalgorithm import geneticalgorithm as ga
+from Components.Data_meteo_reading import Ts2_A, Ts2_B, Ts2_C, Ts2_D
+from Components.Data_meteo_reading import Ta_oneday as ext_T
+from Components.Data_meteo_reading import Ta_week
+from Components.Networks import Network_bOptim
 from Components.Source import Source
-from Components.Heat_exchanger import HEX
+from Components.Heat_exchanger import HEX_nom
 from Components.Pipes import Pipe
 from Components.Ressources import *
+from Model_SIM import Simulation_Ta
 
+##OPTIM Function
+algorithm_param={'max_num_iteration': 100, 'population_size': 100, 'mutation_probability': 0.1, 'elit_ratio': 0.2, 'crossover_probability': 0.65, 'parents_portion': 0.3, 'crossover_type': 'uniform', 'max_iteration_without_improv': None}
 
-dx = 90  # spatial discretization step (m)
-dt = 60  # discretization time step (s)
-##Simulation
-def initialise(NET):
-    '''init = list->tuple(dict{'Tr1' : hex.Tr1, 'Ts2_vrai' : hex.Ts2_vrai, 'Ts1' : hex.Ts1}, pipe1.pipeS_T, pipe2.pipeS_T)''' #En réalité le dict ne sert pas à grand chose puisque ce sont des variables que l'on ajuste lors de l'initialisation
-    
-    for i, (hex, pipe1, pipe2) in enumerate(NET.substations):
-        hex.Tr1, hex.Ts2_vrai, hex.Ts1 = init[i][0]['Tr1'], init[i][0]['Ts2_vrai'], init[i][0]['Ts1']
-        pipe1.pipeS_T = list(init[i][1]) #Temperature en Kelvin!
-        pipe2.pipeS_T = list(init[i][2])
+def boundaries(x, nb_SS):
+    sup = math.ceil(x)
+    inf = math.floor(x)
+    if sup < 90000 * nb_SS:
+        return [inf//2, 2*sup]
+    else:
+        return [inf//4, sup]
 
-def simulation(RES, Ts2_h):
-    '''Ts2_h:  list of list of temperature per hour (ie scheduled demand for each substation)'''
-    nb_SS = len(Ts2_h)
-    t = []
-    T_in = []
-    t_tot = 0
-    m_dot = []
-    mdot_SS = []
-    T_return = []
-    T_return_SS = []
-    T_supplySS = []
-    T_supply_secondary = []
-    T_secondary_demand = []
-    P_source = []
-    P_boiler = []
-
-    #SIMULATION
-    # # First loop for initialisation
-    # if not RES.alreadyrun:
-    #     RES.alreadyrun = True
-    #     for j in range(24):
-    #         for p, T_h in enumerate(Ts2_h):
-    #             RES.substations[p][0].Ts2 = T_h[j]
-    #         
-    #         for m in range(60):
-    #             RES.iteration()
-            
+def optim(dim, MOD, param = algorithm_param, step = 100, plot = False):
+    '''Uses Genetic algorithm to calculate an optimal/sub-optimal list of instructions;
+    dim: number of instruction throughout the considered period of time. Cannot be higher than the number of time iterations during a simulation (ie total_t/dt)
+    MOD: an object of class Simulation_Ta
+    param: a dict containing the parameters of the optimization process
+    '''
     time1 = time.time()
-    for j in range(24):
-        for p, T_h in enumerate(Ts2_h):
-            RES.substations[p][0].Ts2 = T_h[j]
-        
-        for m in range(60):
-            RES.iteration()
-            t.append(t_tot)
-            T_in.append(RES.supplyT)
-            T_return.append(RES.returnT)
-            T_return_SS.append([X[0].Tr1 for X in RES.substations])
-            T_supplySS.append([X[0].Ts1 for X in RES.substations])
-            m_dot.append(RES.m_dot)
-            mdot_SS.append([X[0].m_dot1 for X in RES.substations])
-            T_secondary_demand.append([X[0].Ts2 for X in RES.substations])
-            T_supply_secondary.append([X[0].Ts2_vrai for X in RES.substations])
-            P_source.append(Cp*RES.src.m_dot*(RES.src.Ts_Geo - RES.src.Tr_Geo))
-            if RES.NETtype == 'boiler':
-                P_boiler.append(RES.boiler * RES.P_boiler)
-            t_tot += 1
-                
+    MOD.refined_Ts1(dim)
+    try:
+        a = MOD.objective_function_Ta(dim_perday = dim)
+    except ValueError:
+        a = 2
+    n = len(MOD.PBoiler_Ta)
+    step = n//dim
+            
+    varbound=np.array([boundaries(x, MOD.nb_SS) for x in MOD.PBoiler_Ta[step-1::step]] )
+
+    model=ga(function=MOD.objective_function,dimension= dim,variable_type='int',variable_boundaries=varbound, algorithm_parameters=param, value_step = step, exemple = MOD.PBoiler_Ta[step-1::step] )
+    
+    model.run()
     time2 = time.time()
+    print(f'[Optimization process] - Time: {time2-time1}')
     
-    #PLOT
-    t = [x/60 for x in t]
+    Boiler_instructP = list(model.output_dict['variable'])
+    if plot:
+        MOD.plot(Boiler_instructP)
+    return Boiler_instructP
     
-    plt.figure()
-    plt.title('Return Temperature (°C)')
-    plt.plot(t, T_return, label = 'Network return temperature')
-    for i in range(len(T_return_SS[0])):
-        plt.plot(t, [a[i] for a in T_return_SS], label= f'Return_T_net SS_{i}')
-    plt.legend()
     
-    plt.figure()
-    plt.title('Mass flow (kg/s)')
-    plt.plot(t, m_dot, label = 'Total network mass flow')
-    for i in range(len(mdot_SS[0])):
-        plt.plot(t, [a[i] for a in mdot_SS], label= f'Massflow SS_{i}')
-    plt.legend()
+def optim_stepped(dim, MOD, param = algorithm_param):
     
-    plt.figure()
-    plt.title('Supply Temperature (°C)')
-    plt.plot(t, T_in, label = 'Network supply temperature')
-    for i in range(len(T_supplySS[0])):
-        plt.plot(t, [a[i] for a in T_supplySS], label = f'Supply_T_net SS_{i}')
-    plt.legend()
+    time1 = time.time()
     
-    for i in range(len(T_supply_secondary[0])):
-        plt.figure()
-        plt.title(f'SS_{i}')
-        plt.plot(t, [a[i] for a in T_secondary_demand], label = 'Demand Ts2')
-        plt.plot(t, [a[i] for a in T_supply_secondary], label = 'Supplied Ts2')
+    MOD.refined_Ts1(dim)
+    try:
+        a = MOD.objective_function_Ta(dim_perday = dim)
+    except ValueError:
+        a = 2
+    n = len(MOD.PBoiler_Ta)
+    step = n//dim
+    
+    def f(x):
+        sup = math.ceil(x)
+        inf = math.floor(x)
+        if sup < 90000 * MOD.nb_SS:
+            return [inf//2, 2*sup]
+        else:
+            return [inf//4, sup]
+
+    varbound=np.array([f(x) for x in MOD.PBoiler_Ta[step-1::step]] )
+    
+    time2 = time.time()
+    print(f'First step [Refining linear T] - Time: {time2- time1} \n')
+    
+    steps = [10000, 1000, 100]
+    parameters = [(70, 60), (50,40), (50,40)]
+    
+    time1 = time.time()
+    for i, step in enumerate(steps):
+        a, b = parameters[i]
+        param={'max_num_iteration': a, 'population_size': b, 'mutation_probability': 0.1, 'elit_ratio': 0.2, 'crossover_probability': 0.65, 'parents_portion': 0.3, 'crossover_type': 'uniform', 'max_iteration_without_improv': None}
         
-        plt.plot(t, [a[i] for a in T_supplySS], label = 'Supply_T_net SS')
-        plt.plot(t, [a[i] for a in T_return_SS], label = 'Return_T_net SS')
-        plt.legend()   
+        model=ga(function=MOD.objective_function,dimension= dim,variable_type='int',variable_boundaries=varbound, algorithm_parameters=param, value_step = step)
     
-    plt.figure()
-    plt.title('Secondary supply default (°C)')
-    for i in range(len(T_supply_secondary[0])):
-        plt.plot(t, [np.abs(a[i] - b[i]) for a, b in zip(T_supply_secondary,T_secondary_demand) ], label = f'Secondary supply default SS_{i}')
-    plt.legend() 
+        t1 = time.time()
+        model.run()
+        t2 = time.time()
+        print(f'Step = {step} [Genetic algorithm optimization process] - Time: {t2-t1}')
+        
+        Boiler_instructP = list(model.output_dict['variable'])
+        varbound = np.array([[max(0, x - step), x + step] for x in Boiler_instructP] )
+        
+    time2 = time.time()
+    print(f'Second step [GA-Total] - Time: {time2- time1} \n')   
     
-    plt.figure()
-    plt.title('Source Power (kW)')
-    plt.plot(t, [x/1000 for x in P_source], label = 'Geothermal Source' )
-    if RES.NETtype == 'boiler':
-        plt.plot(t, [x/1000 for x in P_boiler], label = 'Gas boiler')
-    plt.legend() 
+    MOD.plot(Boiler_instructP)
     
-    plt.show()
-    return time2 - time1
+    return Boiler_instructP
     
+    
+    
+def optim_week(dim, MOD, param = algorithm_param, Ta_w = Ta_week, step_optim_h = 24):
+    # T_begin = Ta_w[0]
+    # init_day = list(np.linspace(10, T_begin, 24))
+    # MOD.Ta = init_day
+    # MOD.refined_Ts1()
+    # Instruct_P_Boiler = MOD.PBoiler_Ta
+    # MOD.initialisation()
+    # MOD.initialised = False
+    # MOD.initialisation(Instruct_P_Boiler)
+    
+    state_init = MOD.save_init_
+    days = [Ta_w[i:i + 24] for i in range(0, len(Ta_w), step_optim_h)]
+    Pboiler = []
+    Pboiler_Ta = []
+    MOD.initialisation()
+    time1 = time.time()
+    for day in days:
+        print('___________ \n')
+        print(Pboiler)
+        
+        MOD.Ta = day
+        Instruct_P_Boiler = optim(dim, MOD,step = 1000)
+        Pboiler_Ta.extend(MOD.PBoiler_Ta)
+        
+        MOD.initialisation()
+        MOD.initialised = False
+        MOD.Ta = day[0:step_optim_h]
+        MOD.initialisation(Instruct_P_Boiler[0:step_optim_h])
+        Pboiler.extend(Instruct_P_Boiler[0:step_optim_h])
+    
+    time2 = time.time()
+    print(f'time = {time2 - time1}')
+    MOD.save_init_= state_init
+    MOD.initialisation()
+    MOD.Ta = Ta_w
+    MOD.plot(Pboiler)
+    
+    return Pboiler
+        
     
 ##Model parameters
-#Inlet temperature of the network
-Tint = [gauss(65,4) for i in range(24)]
-#Temperature demand (profiles)
-Ts2_1 = [41, 38, 37, 37, 40, 47, 52, 49, 45, 43, 42, 43, 46, 45, 41, 42, 42, 43, 50, 49, 48, 46, 45, 42]
+SS_A = [HEX_nom(100e3, 42, Ts2_A, 5000, 2, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 1000)]
+SS_B = [HEX_nom(100e3, 39, Ts2_B, 5000, 2, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 350)]
+SS_C = [HEX_nom(100e3, 36, Ts2_C, 5000, 2, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 500)]
+SS_D = [HEX_nom(100e3, 43, Ts2_D, 5000, 2, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 700)]
 
-Ts2_2 = [42, 42.5, 43, 43.5, 44, 48.5, 53, 53, 52, 52, 50, 49, 48,47, 46.5, 46, 49, 49.5, 48, 49, 49.5, 50, 50, 42]
-Ts2_2bis = [x - 5 for x in Ts2_2]
-Ts2_3 = [41, 38, 37, 37, 40, 44, 48, 47, 40, 39, 39, 38.5, 39, 39.5, 39, 38.5, 39.5, 39, 50, 49.5, 49, 46, 46, 42]
 
-noise = [gauss(0,2) for i in range(24)]
-t = [i for i in range(24)]
+SRC1 = Source(70, 20, 450000, 3)
 
-Tr2 = 30
-m_dot2 = 1.6
-    
-#Model components
-SS1 = [HEX(70, 45, 44, 28, 1.6, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 1000), Pipe(lam_i, lam_p, lam_s, 120e-3, 145e-3, 195e-3, z, 50)]
-SS2 = [HEX(70, 45, 44, 32, 1.8, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 1000), Pipe(lam_i, lam_p, lam_s, 120e-3, 145e-3, 195e-3, z, 50)]
-SS3 = [HEX(70, 45, 44, 25, 1.8, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 500), Pipe(lam_i, lam_p, lam_s, 120e-3, 145e-3, 195e-3, z, 50)]
+NET = Network_bOptim(SRC1, 0, [SS_A])
+NET3 = Network_bOptim(SRC1, 0, [SS_A, SS_B, SS_C])
 
-SRC1 = Source(70, 20)
+A = Simulation_Ta(NET, ext_T)
+A3 = Simulation_Ta(NET3, ext_T)
 
-NET = Network(SRC1, [SS1])
-NET2 = Network(SRC1, [SS1, SS2])
-NET3 = Network(SRC1, [SS1, SS2, SS3])
 
-NETb = Network_boiler(SRC1, 265000/3, [SS1])
-NETb3 = Network_boiler(SRC1, 265000, [SS1, SS2, SS3])
-NETb3bis = Network_boiler(SRC1, 300000, [SS1, SS2, SS3])
+SRC2 = Source(75, 20, 600000, 3)
+NET4 = Network_bOptim(SRC2, 0, [SS_A, SS_B, SS_C, SS_D])
+A4 = Simulation_Ta(NET4, ext_T)
 
-#simulation(NET3, [Ts2_1, Ts2_2, Ts2_3])
-#simulation(NET3, [Ts2_1, Ts2_2bis, Ts2_3])
+

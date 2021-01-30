@@ -10,10 +10,10 @@ with open(f'Components/Data_meteo.txt', 'rb') as data:
     data.readline()
     f = data.readlines()
 
-with open(f'Components/Data_meteo_oneday.txt', 'rb') as data:
-    data.readline()
-    data.readline()
-    f = data.readlines()
+# with open(f'Components/Data_meteo_oneday.txt', 'rb') as data:
+#     data.readline()
+#     data.readline()
+#     f = data.readlines()
     
     
     
@@ -25,10 +25,35 @@ lignes = [(float(l[0]), float(l[1])) for l in lignes]
 
 
 Ta = [l[1] for l in lignes[0::6]]
-#plt.plot([i for i in range(len(Ta))], Ta)
-#Ta_oneday = Ta[240:265]
+
+#plt.plot([i/24 for i in range(len(Ta))], Ta)
+Ta_oneday = Ta[240:264]
+# plt.figure()
 # plt.plot([i for i in range(len(Ta_oneday))], Ta_oneday)
 # plt.show()
+
+Ta_week = Ta[216:384]
+
+# plt.figure()
+# plt.plot([i/24 for i in range(len(Ta_week))], Ta_week)
+# plt.show()
+
+
+parameters = [(90,30), (85, 23), (87,15), (77, 7), (83, 12), (88, 26), (82, 16), (80, 10), (83, 21), (79, 14), (84, 9)]
+def functionize(a,b):
+    f= lambda x: a - (b/27) * (x + 7)
+    return np.vectorize(f)
+    
+functions = [functionize(a, b) for a, b in parameters]
+
+def plot():
+    T = list(range(-7, 21))
+    plt.figure()
+    for i, f in enumerate(functions):
+        plt.plot(T, f(T), label = f'{i}')
+    plt.legend()
+    plt.show()
+
 
 def Ts2_A(Ta):
     return 90 - (30/27)* (Ta + 7)
@@ -42,10 +67,22 @@ def Ts2_C(Ta):
 def Ts2_D(Ta):
     return 78 - (8/27)* (Ta + 7)
     
+def Ts2_E(Ta):
+    return 83 - (12/27)* (Ta + 7)
+    
+def Ts2_F(Ta):
+    return 88 - (26/27)* (Ta + 7)
+    
+def Ts2_G(Ta):
+    return 82 - (16/27)* (Ta + 7)
+    
 Ts2_A = np.vectorize(Ts2_A)
 Ts2_B = np.vectorize(Ts2_B)
 Ts2_C = np.vectorize(Ts2_C)
 Ts2_D = np.vectorize(Ts2_D)
+Ts2_E = np.vectorize(Ts2_E)
+Ts2_F = np.vectorize(Ts2_F)
+Ts2_G = np.vectorize(Ts2_G)
 
 Tr2_A = 42
 Tr2_2 = 39
@@ -59,5 +96,8 @@ def test():
     plt.plot(T, Ts2_B(T), label = 'Ts2_B')
     plt.plot(T, Ts2_C(T), label = 'Ts2_C')
     plt.plot(T, Ts2_D(T), label = 'Ts2_D')
+    plt.plot(T, Ts2_E(T), label = 'Ts2_E')
+    plt.plot(T, Ts2_F(T), label = 'Ts2_F')
+    plt.plot(T, [A3.f_Ts1(t) for t in T])
     plt.legend()
     plt.show()

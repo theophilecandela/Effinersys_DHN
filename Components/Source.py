@@ -4,19 +4,28 @@ from itertools import *
 from Components.Ressources import *
 
 class Source: 
-    def __init__(self, geoT, geoMdot):
+    def __init__(self, geoT, geoMdot, Q_nom, deltaTlm_nom):
         self.m_dot = geoMdot
         self.Ts_Geo= geoT
-        self.Tr_Geo = 55
-        self.Ts_Net = 70
-        self.Tr_Net = 40
-        self.P = (geoT - 55)*geoMdot*Cp
+        self.P = Q_nom
+        self.Tr_Geo = geoT - Q_nom/(geoMdot * Cp)
+        self.Ts_Net = geoT - 2
+        #self.Tr_Net = 40
+        if self.Ts_Geo - self.Ts_Net > deltaTlm_nom:
+            x0 = deltaTlm_nom/2
+        elif self.Ts_Geo - self.Ts_Net < deltaTlm_nom:
+            x0 = 2*deltaTlm_nom
+        f = lambda x: (x - deltaTlm_nom*ln(x) - (self.Ts_Geo - self.Ts_Net - deltaTlm_nom*ln(self.Ts_Geo - self.Ts_Net)))
+        f_prime = lambda x: 1 - deltaTlm_nom/x
+        self.Tr_Net = self.Tr_Geo - newton(f, f_prime, x0)
+        
     
     def UA(self):
         '''calculates the UA in Q = UA.deltaTlog, with the approximation given in J.J.J. Chen, Comments on improvements on a replacement for the logarithmic mean  '''
         a = 0.3275
         Q = Cp * self.m_dot * (self.Ts_Geo - self.Tr_Geo)
         deltaTlm = ((self.Ts_Geo-self.Tr_Geo) - (self.Ts_Net-self.Tr_Net))/ln((self.Ts_Geo - self.Tr_Geo)/(self.Ts_Net-self.Tr_Net))
+        
         UA = Q/deltaTlm
         return UA
         
