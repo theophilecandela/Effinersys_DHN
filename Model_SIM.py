@@ -32,6 +32,8 @@ class Simulation():
         self.cost_Tdefault_SS = [0] * self.nb_SS
         self.cost_constraintT = 0
         
+        self.storage = self.RES.Storage is not None
+        
         self.initialised = False
         self.save_init_ = []
         
@@ -46,7 +48,7 @@ class Simulation():
     Ta = property(_get_Ta, _set_Ta)
     
 
-    def initialisation(self, T_instruct = None):
+    def initialisation(self, T_instruct = None, Storage_instruct = None):
         '''T_instruct: instruct T_supply, step 1hour'''
         # First loop for initialisation
         if not self.initialised:
@@ -56,6 +58,14 @@ class Simulation():
                 if len(T_instruct) != self.nb_hour:
                     raise IndexError('There shall be one instruction for each hour')
             
+            if Storage_instruct is not None:
+                if not self.storage:
+                    raise ValueError('There is no storage buffer in this DH Network')
+                elif len(Storage_instruct) < self.nb_hour:
+                    raise ValueError('There shall be at least on instruction for each hour')
+                nbiter_instruc = len(self.t)//len(Storage_instruct)
+                i_instruct = 0
+            
             for j in range(self.nb_hour):
                 for p in range(self.nb_SS):
                     self.RES.substations[p][0].Ts2 = self.RES.substations[p][0].f_Ts2(self.Ta[j])
@@ -63,6 +73,11 @@ class Simulation():
                     self.RES.Boiler_Tinstruct = T_instruct[j]
                     
                 for m in range(3600//dt):
+                    if Storage_instruct is not None:
+                        if t_tot % nbiter_instruc == 0:
+                            self.RES.storage_flow = Storage_instruct[i_instruct]
+                            i_instruct += 1
+                            
                     self.RES.iteration()
                     t_tot += 1
                     
@@ -71,6 +86,11 @@ class Simulation():
             for i, (hex, pipe1) in enumerate(self.RES.substations):
                 save.append(({'Tr1' : hex.Tr1, 'Ts2_vrai' : hex.Ts2_vrai, 'Ts1' : hex.Ts1, 'm1':hex.m_dot1}, np.copy(pipe1.pipeS_T), np.copy(pipe1.pipeR_T) ))
             self.save_init_.append(save)
+            
+            if self.storage:
+                storage = [self.RES.Storage.hot_T, self.RES.Storage.low_T, self.RES.Storage.hot_V, self.RES.Storage.low_V]
+                self.save_init_.append(storage)
+                
             self.initialised = True
             self.RES.alreadyrun = True
             
@@ -82,7 +102,11 @@ class Simulation():
             self.RES.Ts_nodes = self.save_init_[3].copy()
             self.RES.Tr_nodes = self.save_init_[4].copy()
             save = self.save_init_[5]
-            
+            if self.storage:
+                self.RES.storage_flow = 0
+                self.RES.Storage.m_dot = 0
+                self.RES.Storage.hot_T, self.RES.Storage.low_T, self.RES.Storage.hot_V, self.RES.Storage.low_V = self.save_init_[6]
+                
             for i, (hex, pipe1) in enumerate(self.RES.substations):
                 hex.Tr1, hex.Ts2_vrai, hex.Ts1, hex.m_dot1 = save[i][0]['Tr1'], save[i][0]['Ts2_vrai'], save[i][0]['Ts1'], save[i][0]['m1']
                 pipe1.pipeS_T = list(save[i][1]).copy()
@@ -129,7 +153,7 @@ class Simulation():
         
         print(f'optim score = {score} \n')
         
-    def simulation(self, T_instruct):
+    def simulation(self, T_instruct, Storage_instruct = None):
         self.initialisation()
         
         self.E_Geo = 0
@@ -145,7 +169,10 @@ class Simulation():
         if T_instruct is not None:
             if len(T_instruct) != self.nb_hour:
                 raise IndexError('There shall be one instruction for each hour')
-        
+        if Storage_instruct is not None:
+            nbiter_instruc = len(self.t)//len(Storage_instruct)
+            i_instruct = 0
+                 
         for j in range(self.nb_hour):
             for p in range(self.nb_SS):
                 self.RES.substations[p][0].Ts2 = self.RES.substations[p][0].f_Ts2(self.Ta[j])
@@ -153,6 +180,10 @@ class Simulation():
                 self.RES.Boiler_Tinstruct = T_instruct[j]
 
             for m in range((3600//dt)):
+                if Storage_instruct is not None:
+                    if t_tot % nbiter_instruc == 0:
+                        self.RES.storage_flow = Storage_instruct[i_instruct]
+                        i_instruct += 1
                 
                 self.RES.iteration()
                 
@@ -179,12 +210,25 @@ class Simulation():
                 
         time2 = time.time()
     
-    def objective_function(self, T_boiler_instruction, exe_time = False):
+    def objective_function_optim(self, Instructions):
+        T_instruct = Instructions[0:self.nb_hour]
+        Stor_instruct = None
+        if len(Instructions) > self.nb_hour:
+            Stor_instruct = Instructions[24::]
+        return self.objective_function(T_instruct, Storage_instructions = Stor_instruct)
+            
+    def objective_function(self, T_boiler_instruction, Storage_instructions = None, exe_time = False):
         time1 = time.time()
+        
+        if Storage_instructions is not None:
+            if not self.storage:
+                raise ValueError('There is no storage buffer in this DH Network')
+            elif len(Storage_instructions) < self.nb_hour:
+                raise ValueError('There shall be at least on instruction for each hour')
 
         #self.simulation(T_boiler_instruction)
         try:
-            self.simulation(T_boiler_instruction)
+            self.simulation(T_boiler_instruction, Storage_instruct = Storage_instructions)
         except ValueError as e:
             return max(10, float(e.__str__())*20)
             
@@ -200,16 +244,18 @@ class Simulation():
         
         C_constraint = self.cost_constraintT/(len(self.t)*self.nb_SS)
         
-        #print(C1, C2, C_constraint)
+        print(f'coût conso = {C1}, coût ecart consigne = {C2}, coût T_maximale = {C_constraint}')
+        print(f'E_boiler = {E_boiler}, E_Geothermie = {E_Geo}')
+        print(f'Coût total = {C1 + C2 + C_constraint}')
         
         time2 = time.time()
         
         if exe_time:
             print(time2-time1)
-        return C1 + C2 + C_constraint
+        #return C1 + C2 + C_constraint
         
     
-    def plot(self, T_instruct):
+    def plot(self, T_instruct, Storage_instruct = None):
         self.initialisation()
         
         T_return_SS = []
@@ -218,6 +264,12 @@ class Simulation():
         T_secondary_demand = []
         P_boiler = []
         water_flow = []
+        storage_flow = []
+        E_boiler = 0
+        
+        storage_hV = []
+        storage_lV = []
+        storage_hT = []
         
         time1 = time.time()
         t_tot = 0
@@ -225,7 +277,14 @@ class Simulation():
         if T_instruct is not None:
             if len(T_instruct) != self.nb_hour:
                 raise IndexError('There shall be one instruction for each hour')
-        
+        if Storage_instruct is not None:
+            if not self.storage:
+                raise ValueError('There is no storage buffer in this DH Network')
+            elif len(Storage_instruct) < self.nb_hour:
+                raise ValueError('There shall be at least on instruction for each hour')
+            nbiter_instruc = len(self.t)//len(Storage_instruct)
+            i_instruct = 0
+                
         for j in range(self.nb_hour):
             for p in range(self.nb_SS):
                 self.RES.substations[p][0].Ts2 = self.RES.substations[p][0].f_Ts2(self.Ta[j])
@@ -233,18 +292,32 @@ class Simulation():
                 self.RES.Boiler_Tinstruct = T_instruct[j]
             
             for m in range(3600//dt):
+                if Storage_instruct is not None:
+                    if t_tot % nbiter_instruc == 0:
+                        self.RES.storage_flow = Storage_instruct[i_instruct]
+                        i_instruct += 1
+                
                 self.RES.iteration()
                 
                 P_boiler.append(self.RES.P_Boiler)
+                E_boiler += self.RES.P_Boiler
                 T_return_SS.append([X[0].Tr1 for X in self.RES.substations])
                 T_supplySS.append([X[0].Ts1 for X in self.RES.substations])
                 T_secondary_demand.append([X[0].Ts2 for X in self.RES.substations])
                 T_supply_secondary.append([X[0].Ts2_vrai for X in self.RES.substations])
                 water_flow.append(self.RES.m_dot)
+                storage_flow.append(self.RES.storage_flow)
+                
+                storage_hV.append(self.RES.Storage.hot_V)
+                storage_lV.append(self.RES.Storage.low_V)
+                
+                storage_hT.append(self.RES.Storage.hot_T)
                 
                 t_tot += 1
-                    
+              
         time2 = time.time()
+        
+        print(E_boiler * dt)
         if len(self.t)//(3600//dt) > 72:
             t = [x/(3600*24)*dt for x in self.t]
         else:
@@ -273,6 +346,20 @@ class Simulation():
         plt.figure()
         plt.title(f'Network water flow')
         plt.plot(t, [a for a in water_flow])
+        plt.plot(t, [a for a in storage_flow])
+        plt.show()
+        
+        plt.figure()
+        plt.title(f'Storage Volume')
+        plt.plot(t, [a for a in storage_hV], label = 'hV')
+        plt.plot(t, [a for a in storage_lV], label = 'lV')
+        plt.legend()
+        plt.show()
+        
+        plt.figure()
+        plt.title(f'Storage hT')
+        plt.plot(t, [a for a in storage_hT], label = 'hT')
+        plt.legend()
         plt.show()
         
         

@@ -12,14 +12,6 @@ class Buffer:
         self.low_V = lV
         self.m_dot = 0
         
-    def Supply_side(selfT_supply): 
-        if self.m_dot > 0:
-            self.delivery_cold_water(m_dot)
-            self.intake_hot_water(m_dot, T_supply)
-        else:
-            self.intake_cold_water( -m_dot, T_return)
-            self.delivery_hot_water(m_dot)
-        
     def intake_hot_water(self, T):
         #appel à delivery_cold_water --> no because we have to deal with it in the previous iteration
         mdot = np.abs(self.m_dot)
@@ -48,7 +40,7 @@ class Buffer:
             return self.low_T, mdot
         
     def delivery_cold_water(self, mdot):
-        if self.low_V > 0
+        if self.low_V > 0:
             self.low_V = self.low_V - mdot * dt/rho
             return self.low_T
         else:

@@ -17,14 +17,15 @@ from Components.Source import Source
 from Components.Heat_exchanger import HEX_nom
 from Components.Pipes import Pipe
 from Components.Ressources import *
+from Components.Storage import Buffer
 from Model_SIM import Simulation
 
 ##OPTIM Function
 algorithm_param={'max_num_iteration': 60, 'population_size': 90, 'mutation_probability': 0.1, 'elit_ratio': 0.2, 'crossover_probability': 0.65, 'parents_portion': 0.3, 'crossover_type': 'uniform', 'max_iteration_without_improv': None}
 
-def optim(dim, MOD, param = algorithm_param, step = 1, plot = False):
+def optim(dim, MOD, param = algorithm_param, step = 1, Storage_dim = None, plot = False):
     '''Uses Genetic algorithm to calculate an optimal/sub-optimal list of instructions;
-    dim: number of instruction throughout the considered period of time. Cannot be higher than the number of time iterations during a simulation (ie total_t/dt)
+    dim: number of instruction throughout the considered period of time. From now on, cannot be different than MOD.nb_hour 
     MOD: an object of class Simulation_Ta
     param: a dict containing the parameters of the optimization process
     '''
@@ -43,23 +44,34 @@ def optim(dim, MOD, param = algorithm_param, step = 1, plot = False):
         param = {'max_num_iteration': 60, 'population_size': 110, 'mutation_probability': 0.1, 'elit_ratio': 0.2, 'crossover_probability': 0.65, 'parents_portion': 0.3, 'crossover_type': 'uniform', 'max_iteration_without_improv': None}
         if a > 2:
             param = {'max_num_iteration': 60, 'population_size': 130, 'mutation_probability': 0.1, 'elit_ratio': 0.2, 'crossover_probability': 0.65, 'parents_portion': 0.3, 'crossover_type': 'uniform', 'max_iteration_without_improv': None}
+    
+    if Storage_dim is None:
+        varbound=np.array([[60, 105]]*dim)
+        var_type = None
+        if dim == len(MOD.Ta):
+            ex = [MOD.f_Ts1(T) for T in MOD.Ta]
+        else:
+            ex = None
             
-    varbound=np.array([[60, 105]]*dim)
-    if dim == len(MOD.Ta):
-        ex = [MOD.f_Ts1(T) for T in MOD.Ta]
     else:
-        ex = None
+        varbound=np.array([[60, 105]]*dim + [[-5, 5]]*Storage_dim)
+        var_type = np.array(['int'] * dim + ['real']*Storage_dim)
+        dim += Storage_dim
+        if dim == len(MOD.Ta):
+            ex = [MOD.f_Ts1(T) for T in MOD.Ta] + [0]*Storage_dim
+        else:
+            ex = None
         
-    model=ga(function=MOD.objective_function,dimension= dim,variable_type='int',variable_boundaries=varbound, algorithm_parameters=param, value_step = step, exemple = ex)
+    model=ga(function=MOD.objective_function_optim,dimension= dim,variable_type='int',variable_boundaries=varbound, variable_type_mixed= var_type, algorithm_parameters=param, value_step = step, exemple = ex)
     
     model.run()
     time2 = time.time()
     print(f'[Optimization process] - Time: {time2-time1}')
     
-    Boiler_instructT = list(model.output_dict['variable'])
+    Instruct = list(model.output_dict['variable'])
     if plot:
-        MOD.plot(Boiler_instructT)
-    return Boiler_instructT
+        MOD.plot(Instruct[0:MOD.nb_hour])
+    return Instruct
        
     
 class Result:
@@ -167,3 +179,24 @@ SRC_10 = Source(72, 40, 1500000, 3)
 NET_10 = Network(SRC_10, SubStations10)
 A10 = Simulation(NET_10, ext_T)
 
+Stor1 = Buffer(70, 50, 15.6, 6)
+NET_3_storage = Network(SRC_3, SubStations_3, storage_buffer = Stor1)
+A3_storage=  Simulation(NET_3_storage, ext_T)
+
+def test_storage():
+    param={'max_num_iteration': 60, 'population_size': 90, 'mutation_probability': 0.1, 'elit_ratio': 0.2, 'crossover_probability': 0.65, 'parents_portion': 0.3, 'crossover_type': 'uniform', 'max_iteration_without_improv': None}
+    
+    varbound=np.array([[60, 105]]*24+ [[-5, 5]]*24)
+    
+    var_type = np.array(['int'] * 24 + ['real']*24)
+    
+    step = 1
+    dim = 48
+    ex =  [75, 75, 75, 75, 76, 76, 76, 79, 80, 78, 77, 69, 72, 67, 66, 62, 71, 60, 64, 73, 73, 74, 74, 64] + [0] * 24
+    model=ga(function=A3_storage.objective_function_optim,dimension= dim,variable_type='int',variable_boundaries=varbound, variable_type_mixed= var_type, algorithm_parameters=param, value_step = step, exemple = ex)
+    
+    model.run()
+    
+    Instruct = list(model.output_dict['variable'])
+    return Instruct
+    

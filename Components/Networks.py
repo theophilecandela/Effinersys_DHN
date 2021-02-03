@@ -112,6 +112,9 @@ class Network():
         #Calculation of the supply temperature re-heated by the source
         if self.Storage is not None:
             if self.storage_flow > 0:
+                if np.abs(self.storage_flow) >= self.m_dot:
+                    raise ValueError((np.abs(self.storage_flow)/self.m_dot)*20)
+                    
                 self.Storage.intake_cold_water(np.abs(self.storage_flow), self.returnT)
                 self.m_dot -= np.abs(self.storage_flow)
                 
