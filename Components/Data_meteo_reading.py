@@ -3,6 +3,7 @@ from numpy import log as ln
 from matplotlib import pyplot as plt
 import math
 import pickle
+import random as rd
 
 #File containing outside Temperature measure, every ten minutes
 with open(f'Components/Data_meteo.txt', 'rb') as data:
@@ -32,19 +33,26 @@ Ta_oneday = Ta[240:264]
 # plt.plot([i for i in range(len(Ta_oneday))], Ta_oneday)
 # plt.show()
 
-Ta_week = Ta[216:384]
+Ta_week = Ta[216:396] 
+#180 hour = 7days + twelve hour in order to optimise the last twelve hour of the seventh day
 
 # plt.figure()
 # plt.plot([i/24 for i in range(len(Ta_week))], Ta_week)
 # plt.show()
 
 
-parameters = [(90,30), (85, 23), (87,15), (77, 7), (83, 12), (88, 26), (82, 16), (80, 10), (83, 21), (79, 14), (84, 9)]
+#parameters = [(90,30), (85, 23), (87,15), (77, 7), (83, 12), (88, 26), (82, 16), (80, 10), (83, 21), (79, 14), (84, 9)]
+
+#parameters = [(rd.randrange(70, 85, 1), rd.randrange(60, 67, 1)) for i in range(10)]
+parameters = [(75, 64), (79, 60), (80, 62), (82, 62), (70, 66), (70, 66), (80, 65), (73, 66), (81, 60), (73, 64)]
 def functionize(a,b):
-    f= lambda x: a - (b/27) * (x + 7)
+    c = a - b
+    f= lambda x: a - (c/27) * (x + 7)
     return np.vectorize(f)
     
 functions = [functionize(a, b) for a, b in parameters]
+Tr2_SS = [rd.randrange(36, 43, 1) for i in range(10)]
+
 
 def plot():
     T = list(range(-7, 21))

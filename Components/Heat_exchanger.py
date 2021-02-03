@@ -32,6 +32,10 @@ class HEX:
         
         #print(Q,deltaTlm, self.m_dot1, UA)
         return UA
+    
+    def solve_bis(self, Ts1, Ts2, Q, UA):
+        raise ValueError(((Ts1 - Ts2)/(Q/(UA)))/(15/3.5))
+        return(0,0)
         
     def solve(self, Ts1):
         '''For a primary side supply temperature, calculates the return temperature and primary side mass flow, as well as determining whether the network can cover the heat demand'''
@@ -49,7 +53,7 @@ class HEX:
             
             #if approximation does not give an intended result
             if math.isnan(Tr1):
-                raise ValueError(((Ts1 - Ts2)/(Q/(UA)))/(15/3.5))
+                Tr1, m1 = self.solve_bis(Ts1, Ts2, Q, UA)
 
             Ts2c = (Tr1 > Tr2)*(Tr1 < Ts1)
         Ts2_vrai = Ts2
@@ -99,4 +103,50 @@ class HEX_nom(HEX):
         UA = U*self.Aex
         return UA
         
+    # def solve_bis(self, Ts1, Ts2, Q, UA):
+    #     q = 0.8
+    #     kA = self.hnom*self.Aex
+    #     Tr2 = self.Tr2
+    #     Q1 = Q/(Ts1 - Ts2)
+    #     Q2 = Q/(Cp * (Ts2 - Tr2))
+    #     c1 = kA*(Q2**q)
+    #     c2 = (Ts1-Ts2)/(Ts2-Tr2)
+    #     
+    #     def g1(x):
+    #         return x - 1
+    #     def g2(x):
+    #         return 1 + (1 - c2 * (x-1))**q
+    #     def g2_prime(x):
+    #         return -c2 * q * (1 - c2 * (x-1))**(q-1)
+    #     def g3(x):
+    #         return np.log(x)
+    #         
+    #     def f(x):
+    #         if x == 1:
+    #             return 1/2 - Q1/c1
+    #         elif x == 0:
+    #             return - Q1/c1
+    #         else:
+    #             return g1(x)/(g2(x) * g3(x))  - Q1/c1
+    #     
+    #     def f_prime(x):
+    #         if x == 1:
+    #             return 1/2 * (1/2 + c2 * q /2)
+    #         elif x == 0:
+    #             return 1
+    #         else:
+    #             return ((f(x)+Q1/c1) * ((g3(x) - g1(x)/x)/(g1(x)*g3(x)) - g2_prime(x)/g2(x)))
+    #     
+    #     x0 = 1/c2 + 0.8
+    #     try:
+    #         x1 = newton(f, f_prime, x0)
+    #         
+    #     except ValueError:
+    #         #x1 = 0
+    #         raise ValueError(((Ts1 - Ts2)/(Q/(UA)))/(15/3.5))
+    #         
+    #     Tr1 = Tr2 + x1 * (Ts1-Ts2)
+    #     m1 = Q /(Cp * (Ts1 - Tr1))
+    #     
+    #     return Tr1, m1
         

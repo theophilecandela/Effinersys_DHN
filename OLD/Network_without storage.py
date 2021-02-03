@@ -3,8 +3,8 @@ from numpy import log as ln
 from itertools import *
 from Components.Ressources import *
 
-class Network():
-    def __init__(self, source, list_substations, storage_buffer = None):
+class Network:
+    def __init__(self, source, list_substations):
         ''' inlet_T initialization supply Temperature of the network
         list_substations : [[HEX_i, Pipe_nodetopreviousnode_i]]'''
         self.supplyT = source.Ts_Net
@@ -14,23 +14,11 @@ class Network():
         self.Ts_nodes = [X[1].TS_ext() for X in list_substations]
         self.Tr_nodes = [X[1].TR_ext() for X in list_substations[::-1]] #from further node to closer
         self.nb_substations =  len(list_substations)
-        
         self.substations = list_substations
         self.src = source
-        self.Storage = storage_buffer
+        
         self.alreadyrun = False
-        
-        self.storage_flow = 0
-        self.Boiler_Tinstruct = None
-        
-        self.P_Boiler = 0
-        self.P_Geo = 0
-        self.P_demand = 0
-        self.P_supplied = 0
-        self.Tsupply_default_SS = []
-        self.maxT = 0
-        
-        self.NETtype = 'Optim_boiler_storage'
+        self.NETtype = 'basic'
         
     def iter_returnside(self):
         Tr_node_network_upstream = 0
@@ -47,8 +35,53 @@ class Network():
             
             Tr_node_network_upstream = p1.TR_ext()
             
-        self.returnT = Tr_node_network_upstream    
+        self.returnT = Tr_node_network_upstream
+       
         
+    def iter_supplyside(self):
+        m_dot = self.m_dot
+        T_node = [self.supplyT] + list(self.Ts_nodes)
+        
+        for i, (hex, pipe1) in enumerate(self.substations):
+            #Calculation of Temperatures in the network at time (t+1) (for next iteration)
+            pipe1.evolS_T(m_dot, T_node[i])
+            
+            #Calculation of the new mass flow and return temperature at substation for time t+1
+            m_dotSS = hex.m_dot1
+            hex.solve(T_node[i+1])
+            m_dot -= m_dotSS
+            
+            
+    def iteration(self):
+        '''we consider that mass flow is established much faster than temperature flow''' #?
+        
+        #RETURN SIDE
+        self.iter_returnside()
+        #SUPPLY SIDE
+        self.iter_supplyside()
+            
+        self.subm_dot = [X[0].m_dot1 for X in self.substations] #substations mass flows at time t+1
+        self.m_dot = sum(self.subm_dot) #Network mass flow at time t+1
+        self.Ts_nodes = [X[1].TS_ext() for X in self.substations]
+        
+        #Calculation of the supply temperature re-heated by the source
+        self.src.solve(self.m_dot, self.returnT)
+        self.supplyT = self.src.Ts_Net
+        
+        
+        
+class Network_bOptim(Network):
+    def __init__(self, source, list_substations):
+        Network.__init__(self, source, list_substations)
+        self.NETtype = 'Optim_boiler'
+        self.Boiler_Tinstruct = None
+        self.P_Boiler = 0
+        self.P_Geo = 0
+        self.P_demand = 0
+        self.P_supplied = 0
+        self.Tsupply_default_SS = []
+        self.maxT = 0
+
     def iter_supplyside(self):
         self.maxT = 0
         m_dot = self.m_dot
@@ -84,44 +117,4 @@ class Network():
             self.Tsupply_default_SS.append(hex.Ts2 - hex.Ts2_vrai)
             self.P_demand += Pd
             self.P_supplied += Ps
-            
-            
-    def iteration(self):
-        '''we consider that mass flow is established much faster than temperature flow''' #?
-        
-        #RETURN SIDE
-        self.iter_returnside()
-        
-        #SUPPLY SIDE
-        if self.Storage is not None:
-            if self.Storage.m_dot > 0:
-                T , mdot = self.Storage.delivery_hot_water()
-                self.supplyT = (self.supplyT * self.m_dot + T * mdot)/(self.m_dot + mdot)
-                self.m_dot += mdot
-                
-            elif self.Storage.m_dot < 0:
-                self.Storage.intake_hot_water(self.supplyT)
-                self.m_dot += self.Storage.m_dot
-                
-        self.iter_supplyside()
-            
-        self.subm_dot = [X[0].m_dot1 for X in self.substations] #substations mass flows at time t+1
-        self.m_dot = sum(self.subm_dot) #Network mass flow at time t+1
-        self.Ts_nodes = [X[1].TS_ext() for X in self.substations]
-        
-        #Calculation of the supply temperature re-heated by the source
-        if self.Storage is not None:
-            if self.storage_flow > 0:
-                self.Storage.intake_cold_water(np.abs(self.storage_flow), self.returnT)
-                self.m_dot -= np.abs(self.storage_flow)
-                
-            elif self.storage_flow < 0:
-                T = self.Storage.delivery_cold_water(np.abs(self.storage_flow))
-                self.returnT = (self.returnT * self.m_dot + T * np.abs(self.storage_flow))/(self.m_dot + np.abs(self.storage_flow))
-                self.m_dot += np.abs(self.storage_flow)
-                
-            self.Storage.m_dot = self.storage_flow
-        
-        self.src.solve(self.m_dot, self.returnT)
-        self.supplyT = self.src.Ts_Net
             
