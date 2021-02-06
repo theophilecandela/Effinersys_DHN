@@ -30,6 +30,7 @@ class Pipe:
         #Arbitratry temperatures initialization
         self.pipeS_T = [348.15]*self.nb_controlvolume #[343.15]*self.nb_controlvolume
         self.pipeR_T = [333.15]*self.nb_controlvolume
+        self.heat_losses = 0
         
     def R(self, m_dot):
         '''calculates the thermal resistance of the pipe, taking convection into consideration, as a function of mass flow only'''
@@ -40,6 +41,7 @@ class Pipe:
     def evolS_T(self, m_dot, T_in): 
         ''' Calculates the evolution of temperatures in the supply pipe during on minute with entrance temperature = T_in.
         Temperatures must be given in °C '''
+        self.heat_losses = 0
         T_in = T_in + 273.15
         A = self.param['S']
         T_n = np.copy(self.pipeS_T)
@@ -51,12 +53,15 @@ class Pipe:
                 T_n[0] = (T_n[0] + u_n*dt/dx *T_in + dt/(A * rho * Cp * R)*Ta)/(1 + u_n*dt/dx + dt/(A * rho * Cp * R))
             else:
                 T_n[i] = (Ti + u_n*dt/dx *T_n[i-1] + dt/(A * rho * Cp * R)*Ta)/(1 + u_n*dt/dx + dt/(A * rho * Cp * R))
+                
+            self.heat_losses += dx*(Ti - Ta)/R
             
         self.pipeS_T = T_n
         
     def evolR_T(self, m_dot, Tr_in):
         ''' Calculates the evolution of temperatures in the return pipe during on minute with entrance temperature = T_in.
         Temperatures must be given in °C'''
+        self.heat_losses = 0
         T_in = Tr_in + 273.15
         A = self.param['S']
         T_n = np.copy(self.pipeR_T)
@@ -68,7 +73,8 @@ class Pipe:
                 T_n[0] = (T_n[0] + u_n*dt/dx *T_in + dt/(A * rho * Cp * R)*Ta)/(1 + u_n*dt/dx + dt/(A * rho * Cp * R))
             else:
                 T_n[i] = (Ti + u_n*dt/dx *T_n[i-1] + dt/(A * rho * Cp * R)*Ta)/(1 + u_n*dt/dx + dt/(A * rho * Cp * R))
-            
+                
+            self.heat_losses += dx*(Ti - Ta)/R
         self.pipeR_T = T_n
     
     def TS_ext(self):

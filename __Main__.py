@@ -185,7 +185,7 @@ Stor1 = Buffer(70, 50, 15.6, 6)
 NET_3_storage = Network(SRC_3, SubStations_3, storage_buffer = Stor1)
 A3_storage=  Simulation(NET_3_storage, ext_T)
 
-def test_storage():
+def improve_soluce_storage(soluce):
     param={'max_num_iteration': 60, 'population_size': 120, 'mutation_probability': 0.1, 'elit_ratio': 0.2, 'crossover_probability': 0.65, 'parents_portion': 0.3, 'crossover_type': 'uniform', 'max_iteration_without_improv': None}
     
     varbound=np.array([[60, 105]]*24+ [[-5, 5]]*24)
@@ -194,8 +194,23 @@ def test_storage():
     
     step = 1
     dim = 48
-    ex =  [75.0, 76.0, 76.0, 76.0, 76.0, 76.0, 76.0, 77.0, 77.0, 77.0, 77.0, 75.0, 72.0, 71.0, 69.0, 68.0, 63.0, 72.0, 72.0, 73.0, 73.0, 73.0, 74.0, 74.0, 0.0, 0.0, -0.04329989515377783, -0.20038069235768852, 0.0, 0.0, -0.06529396417240108, -1.6289906863083194, -1.8406841834767826, -4.8619820313124755, 0.0, -0.033245495126069, 0.0400853376187964, -4.086088819277983, 1.4384893410289745, 0.0, -1.238141442194575, -0.14937113829617665, -4.390134819942694, 0.0, -4.855940153336126, -3.295454336307153, 0.0, 0.0]
+    ex =  soluce
     model=ga(function=A3_storage.objective_function_optim,dimension= dim,variable_type='int',variable_boundaries=varbound, variable_type_mixed= var_type, algorithm_parameters=param, value_step = step, exemple = ex)
+    
+    model.run()
+    
+    Instruct = list(model.output_dict['variable'])
+    return Instruct
+    
+def improve_soluce_without_storage(soluce):
+    param={'max_num_iteration': 60, 'population_size': 120, 'mutation_probability': 0.1, 'elit_ratio': 0.2, 'crossover_probability': 0.65, 'parents_portion': 0.3, 'crossover_type': 'uniform', 'max_iteration_without_improv': None}
+    
+    varbound=np.array([[60, 105]]*24)
+    
+    step = 1
+    dim = 24
+    ex =  soluce
+    model=ga(function=A3_storage.objective_function_optim,dimension= dim,variable_type='int',variable_boundaries=varbound,  algorithm_parameters=param, value_step = step, exemple = ex)
     
     model.run()
     
@@ -204,10 +219,10 @@ def test_storage():
     
     
 ##
-I = [75.0, 76.0, 76.0, 76.0, 76.0, 76.0, 76.0, 77.0, 77.0, 77.0, 77.0, 75.0, 72.0, 71.0, 69.0, 68.0, 63.0, 72.0, 72.0, 73.0, 73.0, 73.0, 74.0, 74.0, 0.0, 0.0, -0.04329989515377783, -0.20038069235768852, 0.0, 0.0, -0.06529396417240108, -1.6289906863083194, -1.8406841834767826, -4.8619820313124755, 0.0, -0.033245495126069, 0.0400853376187964, -4.086088819277983, 1.4384893410289745, 0.0, -1.238141442194575, -0.14937113829617665, -4.390134819942694, 0.0, -4.855940153336126, -3.295454336307153, 0.0, 0.0]
+I = [88.0, 76.0, 82.0, 82.0, 82.0, 81.0, 83.0, 84.0, 78.0, 83.0, 81.0, 73.0, 79.0, 75.0, 77.0, 76.0, 75.0, 77.0, 74.0, 78.0, 79.0, 78.0, 80.0, 72.0, 0.06749779648428259, 0.0, -0.1905950863498598, -1.4169685901719342, -3.1800741803646204, 0.0, -1.5888768140061742, -0.19925243628441902, 0.0, -2.531910434861875, -0.9503893374404973, -2.002626649166742, -4.891614960612433, -4.540493480710127, -1.8654397681728296, -4.90200348947989, -4.82858084283675, -3.212678787620822, 0.0, -1.1167814259368125, -2.2152456128532263, -3.891175555146509, 0.0, -2.6621606755395324]
 
 T = I[0:24]
 
 S  = I[24::]
 
-T_optim= [75.0, 76.0, 76.0, 76.0, 76.0, 76.0, 76.0, 77.0, 77.0, 76.0, 77.0, 74.0, 74.0, 65.0, 67.0, 71.0, 71.0, 71.0, 72.0, 72.0, 73.0, 74.0, 74.0, 73.0]
+T_optim=  [84.0, 75.0, 83.0, 79.0, 82.0, 80.0, 82.0, 80.0, 80.0, 79.0, 79.0, 76.0, 74.0, 74.0, 74.0, 76.0, 76.0, 76.0, 77.0, 77.0, 78.0, 79.0, 78.0, 72.0]

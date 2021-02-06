@@ -72,7 +72,7 @@ class HEX:
             Tr1 = Ts1 - (m2/m1)*(Ts2_vrai-Tr2)
 
         self.Tr1 = Tr1
-        #self.m_dot1 = m1
+        self.m_dot1 = m1
         self.Ts2_vrai = Ts2_vrai
         self.Ts1 = Ts1
         

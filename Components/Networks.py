@@ -27,6 +27,7 @@ class Network():
         self.P_Geo = 0
         self.P_demand = 0
         self.P_supplied = 0
+        self.P_losses = 0
         self.Tsupply_default_SS = []
         self.maxT = 0
         
@@ -43,6 +44,7 @@ class Network():
             
             T_mix_node = (m_dotR*self.Tr_nodes[i] + m_dotSSr*Tr_SS)/(m_dotR + m_dotSSr)
             p1.evolR_T(m_dotR + m_dotSSr, T_mix_node)
+            self.P_losses += p1.heat_losses
             self.Tr_nodes[i] = Tr_node_network_upstream
             m_dotR += m_dotSSr
             
@@ -53,13 +55,7 @@ class Network():
         
         
     def iter_supplyside(self):
-        self.maxT = 0
         m_dot = self.m_dot
-        self.P_Boiler = 0
-        self.P_Geo = self.src.P
-        self.P_demand = 0
-        self.P_supplied = 0
-        self.Tsupply_default_SS = []
         
         if self.Boiler_Tinstruct != None:
             if self.Boiler_Tinstruct > self.supplyT:
@@ -82,6 +78,7 @@ class Network():
             
             hex.solve(pipe1.TS_ext())
             self.Ts_nodes[i] = pipe1.TS_ext()
+            self.P_losses += pipe1.heat_losses
             
             m_dot -= m_dotSS
             
@@ -125,12 +122,20 @@ class Network():
         '''we consider that mass flow is established much faster than temperature flow
            heat exchanges in HEX are considered instantaneous''' 
         
+        self.maxT = 0
+        self.P_Boiler = 0
+        self.P_demand = 0
+        self.P_supplied = 0
+        self.P_losses = 0
+        self.Tsupply_default_SS = []
+        
         #STORAGE AND GEOTHERMAL HEX
         if self.Storage is not None:
             self.storage_cold()
         
         self.src.solve(self.m_dot, self.returnT)
         self.supplyT = self.src.Ts_Net
+        self.P_Geo = self.src.P
         
         # print(self.src.P)
         # print(Cp*self.m_dot*(self.supplyT - self.returnT))

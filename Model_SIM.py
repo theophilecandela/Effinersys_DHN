@@ -30,6 +30,7 @@ class Simulation():
         self.P_boiler = []
         self.Demand = 0
         self.Demand_supplied = 0
+        self.heat_losses = 0
         
         self.cost_Tdefault_SS = [0] * self.nb_SS
         self.cost_constraintT = 0
@@ -163,6 +164,7 @@ class Simulation():
         self.E_default = 0
         self.Demand = 0
         self.Demand_supplied = 0
+        self.heat_losses = 0
         self.cost_Tdefault_SS = [0] * self.nb_SS
         self.cost_constraintT = 0
         self.P_boiler = [] 
@@ -197,6 +199,7 @@ class Simulation():
                 self.E_boiler += self.RES.P_Boiler
                 self.Demand += self.RES.P_demand
                 self.Demand_supplied += self.RES.P_supplied
+                self.heat_losses += self.RES.P_losses
                 self.E_default += self.RES.P_supplied - self.RES.P_demand
                 
                 maxT = self.RES.maxT
@@ -248,6 +251,7 @@ class Simulation():
         E_default = self.E_default*dt/1000000
         Demand = self.Demand*dt/1000000
         Demand_supplied = self.Demand_supplied *dt/1000000
+        E_lost = self.heat_losses * dt/1000000
         
         C1 = E_boiler/(E_tot) #* C_kWh * E_boiler
         
@@ -257,13 +261,15 @@ class Simulation():
         
         print(f'coût conso = {C1}, coût ecart consigne = {C2}, coût T_maximale = {C_constraint}')
         print(f'E_boiler = {E_boiler}, E_Geothermie = {E_Geo}  (MJ)')
-        print(f'Total energy consumed = {E_tot}, Total demand supplied = {Demand_supplied} (MJ)')
+        print(f' Total produced (Boiler+GEO) = {E_tot} MJ \n Total Energy supplied to secondary = {Demand_supplied} MJ \n Total losses = {E_lost}')
+        ecart = (np.abs(E_lost + Demand_supplied - E_tot)/E_tot * 10000 //10) /10
+        print(f'Ecart (losses+consumation) / (Boiler+GEO) = {ecart} %')
         print(f'Coût total = {C1 + C2 + C_constraint}')
         
         time2 = time.time()
         
         if exe_time:
-            print(time2-time1)
+            print(f"temps d'execution = {time2-time1}")
         #return C1 + C2 + C_constraint
         
     
@@ -274,6 +280,7 @@ class Simulation():
         T_supplySS = []
         T_supply_secondary = []
         T_secondary_demand = []
+        T_supply_primary_boiler = []
         P_boiler = []
         water_flow = []
         storage_flow = []
@@ -311,6 +318,7 @@ class Simulation():
                 
                 self.RES.iteration()
                 
+                T_supply_primary_boiler.append(self.RES.Boiler_Tinstruct)
                 P_boiler.append(self.RES.P_Boiler)
                 E_boiler += self.RES.P_Boiler
                 T_return_SS.append([X[0].Tr1 for X in self.RES.substations])
@@ -318,7 +326,8 @@ class Simulation():
                 T_secondary_demand.append([X[0].Ts2 for X in self.RES.substations])
                 T_supply_secondary.append([X[0].Ts2_vrai for X in self.RES.substations])
                 water_flow.append(self.RES.m_dot)
-                storage_flow.append(self.RES.storage_flow)
+                #storage_flow.append(self.RES.storage_flow)
+                storage_flow.append(self.RES.Storage.m_dot)
                 
                 storage_hV.append(self.RES.Storage.hot_V)
                 storage_lV.append(self.RES.Storage.low_V)
@@ -374,7 +383,14 @@ class Simulation():
         plt.legend()
         plt.show()
         
-        
+        plt.figure()
+        plt.title('Supply pipes delays')
+        plt.plot(t,T_supply_primary_boiler, label = 'Supply T' )
+        for i in range(len(T_supply_secondary[0])):
+            plt.plot(t, [a[i] for a in T_supplySS], label = f'Supply_T_net SS_{i}')
+        plt.legend()
+        plt.show()
+            
     def objective_function_Ta(self, f_Ts1 = None, print_time = False):
         '''evaluates a given linear function (or if not furnished self.f_Ts1) as instruction for T_supply instead of a list of instructions calling self.objective_function()'''
         
