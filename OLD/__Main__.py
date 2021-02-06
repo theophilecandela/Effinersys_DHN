@@ -6,7 +6,7 @@ from random import gauss
 from itertools import *
 import time
 
-from Networks import *
+from OLD.Network_twopipesSS_OLD import *
 from Components.Source import Source
 from Components.Heat_exchanger import HEX
 from Components.Pipes import Pipe
@@ -55,7 +55,6 @@ def simulation(RES, Ts2_h):
     for j in range(24):
         for p, T_h in enumerate(Ts2_h):
             RES.substations[p][0].Ts2 = T_h[j]
-        
         for m in range(60):
             RES.iteration()
             t.append(t_tot)
@@ -127,7 +126,7 @@ def simulation(RES, Ts2_h):
     
 ##Model parameters
 #Inlet temperature of the network
-Tint = [gauss(65,4) for i in range(24)]
+Tint = [gauss(65,6) for i in range(24)]
 #Temperature demand (profiles)
 Ts2_1 = [41, 38, 37, 37, 40, 47, 52, 49, 45, 43, 42, 43, 46, 45, 41, 42, 42, 43, 50, 49, 48, 46, 45, 42]
 
@@ -146,7 +145,7 @@ SS1 = [HEX(70, 45, 44, 28, 1.6, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i,
 SS2 = [HEX(70, 45, 44, 32, 1.8, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 1000), Pipe(lam_i, lam_p, lam_s, 120e-3, 145e-3, 195e-3, z, 50)]
 SS3 = [HEX(70, 45, 44, 25, 1.8, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 500), Pipe(lam_i, lam_p, lam_s, 120e-3, 145e-3, 195e-3, z, 50)]
 
-SRC1 = Source(70, 20)
+SRC1 = Source(70, 20, 150000, 3)
 
 NET = Network(SRC1, [SS1])
 NET2 = Network(SRC1, [SS1, SS2])

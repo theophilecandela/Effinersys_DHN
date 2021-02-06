@@ -28,7 +28,9 @@ class Simulation():
         self.E_boiler = 0
         self.E_default = 0
         self.P_boiler = []
-         
+        self.Demand = 0
+        self.Demand_supplied = 0
+        
         self.cost_Tdefault_SS = [0] * self.nb_SS
         self.cost_constraintT = 0
         
@@ -159,6 +161,8 @@ class Simulation():
         self.E_Geo = 0
         self.E_boiler = 0
         self.E_default = 0
+        self.Demand = 0
+        self.Demand_supplied = 0
         self.cost_Tdefault_SS = [0] * self.nb_SS
         self.cost_constraintT = 0
         self.P_boiler = [] 
@@ -187,11 +191,16 @@ class Simulation():
                 
                 self.RES.iteration()
                 
+                # Watts
                 self.P_boiler.append(self.RES.P_Boiler)
                 self.E_Geo += self.RES.P_Geo
                 self.E_boiler += self.RES.P_Boiler
+                self.Demand += self.RES.P_demand
+                self.Demand_supplied += self.RES.P_supplied
                 self.E_default += self.RES.P_supplied - self.RES.P_demand
+                
                 maxT = self.RES.maxT
+                
                 
                 if maxT > 95:
                     self.cost_constraintT += (maxT-95)/10
@@ -232,11 +241,13 @@ class Simulation():
         except ValueError as e:
             return max(10, float(e.__str__())*20)
             
-        #kilowatt-hour
-        E_boiler = self.E_boiler*dt/3600
-        E_Geo = self.E_Geo*dt/3600
+        #MegaJoules
+        E_boiler = self.E_boiler*dt/1000000
+        E_Geo = self.E_Geo*dt/1000000
         E_tot = E_boiler + E_Geo
-        E_default = self.E_default*dt/3600
+        E_default = self.E_default*dt/1000000
+        Demand = self.Demand*dt/1000000
+        Demand_supplied = self.Demand_supplied *dt/1000000
         
         C1 = E_boiler/(E_tot) #* C_kWh * E_boiler
         
@@ -245,7 +256,8 @@ class Simulation():
         C_constraint = self.cost_constraintT/(len(self.t)*self.nb_SS)
         
         print(f'coût conso = {C1}, coût ecart consigne = {C2}, coût T_maximale = {C_constraint}')
-        print(f'E_boiler = {E_boiler}, E_Geothermie = {E_Geo}')
+        print(f'E_boiler = {E_boiler}, E_Geothermie = {E_Geo}  (MJ)')
+        print(f'Total energy consumed = {E_tot}, Total demand supplied = {Demand_supplied} (MJ)')
         print(f'Coût total = {C1 + C2 + C_constraint}')
         
         time2 = time.time()
@@ -382,6 +394,4 @@ class Simulation():
         
         self.plot(np.array(T_instruct))
         
-
-
 

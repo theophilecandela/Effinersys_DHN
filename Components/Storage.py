@@ -20,32 +20,43 @@ class Buffer:
         
         self.hot_V = V_new
         self.hot_T = T_new
+      
         
     def intake_cold_water(self, mdot, T):
         # appel à delivery_hot_water --> no because we have to deal with it in the next iteration
-        V_new = self.low_V + mdot * dt /rho
-        T_new = (self.low_V*self.low_T + mdot*T * dt/rho)/V_new
-        
-        self.low_V = V_new
-        self.low_T = T_new
+        mdot = np.abs(mdot)
+        if self.hot_V - mdot * dt/rho >= 0:
+            V_new = self.low_V + mdot * dt /rho
+            T_new = (self.low_V*self.low_T + mdot*T * dt/rho)/V_new
+            
+            self.low_V = V_new
+            self.low_T = T_new
+            
+            return mdot
+            
+        else:
+            return 0
+    
     
     def delivery_hot_water(self):
         mdot = np.abs(self.m_dot)
-        if self.hot_V > 0:
+        if self.hot_V - mdot * dt/rho >= 0:
             self.hot_V = self.hot_V - mdot * dt/rho
             return self.hot_T, mdot
         else:
-            self.hot_V = 0
-            self.low_V = self.low_V - mdot * dt/rho
-            return self.low_T, mdot
+            # self.hot_V = 0
+            # self.low_V = self.low_V - mdot * dt/rho
+            return self.low_T, 0
+       
         
     def delivery_cold_water(self, mdot):
-        if self.low_V > 0:
+        mdot = np.abs(mdot)
+        if self.low_V - mdot * dt/rho > 0:
             self.low_V = self.low_V - mdot * dt/rho
-            return self.low_T
+            return self.low_T, mdot
         else:
-            self.low_V  = 0
-            self.hot_V = self.hot_V - mdot * dt/rho
-            return self.hot_T
+            # self.low_V  = 0
+            # self.hot_V = self.hot_V - mdot * dt/rho
+            return self.hot_T, 0
 
 # There is no possibility to pump and inject in the same compartment at the same time

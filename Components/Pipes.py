@@ -28,8 +28,8 @@ class Pipe:
         self.length = L
         self.nb_controlvolume, self.dx = step(self.length)
         #Arbitratry temperatures initialization
-        self.pipeS_T = [343.15]*self.nb_controlvolume
-        self.pipeR_T = [323.15]*self.nb_controlvolume
+        self.pipeS_T = [348.15]*self.nb_controlvolume #[343.15]*self.nb_controlvolume
+        self.pipeR_T = [333.15]*self.nb_controlvolume
         
     def R(self, m_dot):
         '''calculates the thermal resistance of the pipe, taking convection into consideration, as a function of mass flow only'''
@@ -45,11 +45,12 @@ class Pipe:
         T_n = np.copy(self.pipeS_T)
         k = 0
         R = self.R(m_dot)
+        u_n = m_dot/(A * rho)
         for i, Ti in enumerate(T_n):
             if i == 0:
-                T_n[0] = (T_n[0] + m_dot*dt/dx *T_in + dt/(A * rho * Cp * R)*Ta)/(1 + m_dot*dt/dx + dt/(A * rho * Cp * R))
+                T_n[0] = (T_n[0] + u_n*dt/dx *T_in + dt/(A * rho * Cp * R)*Ta)/(1 + u_n*dt/dx + dt/(A * rho * Cp * R))
             else:
-                T_n[i] = (Ti + m_dot*dt/dx *T_n[i-1] + dt/(A * rho * Cp * R)*Ta)/(1 + m_dot*dt/dx + dt/(A * rho * Cp * R))
+                T_n[i] = (Ti + u_n*dt/dx *T_n[i-1] + dt/(A * rho * Cp * R)*Ta)/(1 + u_n*dt/dx + dt/(A * rho * Cp * R))
             
         self.pipeS_T = T_n
         
@@ -61,11 +62,12 @@ class Pipe:
         T_n = np.copy(self.pipeR_T)
         k = 0
         R = self.R(m_dot)
+        u_n = m_dot/(A * rho)
         for i, Ti in enumerate(T_n):
             if i == 0:
-                T_n[0] = (T_n[0] + m_dot*dt/dx *T_in + dt/(A * rho * Cp * R)*Ta)/(1 + m_dot*dt/dx + dt/(A * rho * Cp * R))
+                T_n[0] = (T_n[0] + u_n*dt/dx *T_in + dt/(A * rho * Cp * R)*Ta)/(1 + u_n*dt/dx + dt/(A * rho * Cp * R))
             else:
-                T_n[i] = (Ti + m_dot*dt/dx *T_n[i-1] + dt/(A * rho * Cp * R)*Ta)/(1 + m_dot*dt/dx + dt/(A * rho * Cp * R))
+                T_n[i] = (Ti + u_n*dt/dx *T_n[i-1] + dt/(A * rho * Cp * R)*Ta)/(1 + u_n*dt/dx + dt/(A * rho * Cp * R))
             
         self.pipeR_T = T_n
     

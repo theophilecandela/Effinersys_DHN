@@ -33,10 +33,13 @@ class Source:
         '''For a secondary side (network side) return temperature and mass flow, calculates the supply temperature of the network'''
         a = 0.3275
         UA = self.UA() 
+        #print(f'UA = {UA}')
+        self.Tr_Net  = TrNET
         if m_dotNET < self.m_dot:
             NUT = UA/(Cp*m_dotNET)
             R = m_dotNET/self.m_dot
             E = eff(NUT, R)
+            #print(f'E = {E}')
             self.Ts_Net = self.Tr_Net + E*(self.Ts_Geo - self.Tr_Net)
             self.Tr_Geo = self.Ts_Geo - R*(self.Ts_Net-self.Tr_Net)
         
@@ -48,3 +51,4 @@ class Source:
             self.Ts_Net = self.Tr_Net + R*(self.Ts_Geo - self.Tr_Geo)
         
         self.P = (self.Ts_Geo - self.Tr_Geo)*self.m_dot*Cp
+        

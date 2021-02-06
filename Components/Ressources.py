@@ -22,9 +22,13 @@ rho = 1000
 #Depth of buried pipe (m)
 z = 2
 #Pipe radius (m)
-R_int = 200e-3
-R_p = 250e-3
-R_i = 400e-3
+R_int = 0.04
+R_p = 0.05
+R_i = 0.09
+
+# R_int = 200e-3
+# R_p = 250e-3
+# R_i = 400e-3
 
 
 #cost-kilowatt-hour

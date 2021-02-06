@@ -14,14 +14,14 @@ from Components.Data_meteo_reading import Ta_oneday as ext_T
 from Components.Data_meteo_reading import Ta_week, functions, Tr2_SS
 from Components.Networks import Network
 from Components.Source import Source
-from Components.Heat_exchanger import HEX_nom
+from Components.Heat_exchanger import HEX_nom #, Source
 from Components.Pipes import Pipe
 from Components.Ressources import *
 from Components.Storage import Buffer
 from Model_SIM import Simulation
 
 ##OPTIM Function
-algorithm_param={'max_num_iteration': 60, 'population_size': 90, 'mutation_probability': 0.1, 'elit_ratio': 0.2, 'crossover_probability': 0.65, 'parents_portion': 0.3, 'crossover_type': 'uniform', 'max_iteration_without_improv': None}
+algorithm_param={'max_num_iteration': 60, 'population_size': 100, 'mutation_probability': 0.1, 'elit_ratio': 0.2, 'crossover_probability': 0.65, 'parents_portion': 0.3, 'crossover_type': 'uniform', 'max_iteration_without_improv': None}
 
 def optim(dim, MOD, param = algorithm_param, step = 1, Storage_dim = None, plot = False):
     '''Uses Genetic algorithm to calculate an optimal/sub-optimal list of instructions;
@@ -49,18 +49,20 @@ def optim(dim, MOD, param = algorithm_param, step = 1, Storage_dim = None, plot 
         varbound=np.array([[60, 105]]*dim)
         var_type = None
         if dim == len(MOD.Ta):
-            ex = [MOD.f_Ts1(T) for T in MOD.Ta]
+            ex = [math.ceil(MOD.f_Ts1(T)) for T in MOD.Ta]
         else:
             ex = None
             
     else:
         varbound=np.array([[60, 105]]*dim + [[-5, 5]]*Storage_dim)
         var_type = np.array(['int'] * dim + ['real']*Storage_dim)
-        dim += Storage_dim
         if dim == len(MOD.Ta):
-            ex = [MOD.f_Ts1(T) for T in MOD.Ta] + [0]*Storage_dim
+            ex = [math.ceil(MOD.f_Ts1(T)) for T in MOD.Ta] + [0]*Storage_dim
         else:
             ex = None
+            
+        dim += Storage_dim
+        
         
     model=ga(function=MOD.objective_function_optim,dimension= dim,variable_type='int',variable_boundaries=varbound, variable_type_mixed= var_type, algorithm_parameters=param, value_step = step, exemple = ex)
     
@@ -167,7 +169,7 @@ Result_3 = Result()
 pipes_length_3 = [randrange(350, 800, 50) for i in range(3)]
 SubStations_3 = [[HEX_nom(100e3, Tr2_SS[i], functions[i], 5000, 2.8, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, pipes_length_3[i])] for i in range(3)]
 
-SRC_3 = Source(72, 40, 450000, 3)
+SRC_3 = Source(72, 15, 450000, 3)
 NET_3 = Network(SRC_3, SubStations_3)
 A3 = Simulation(NET_3, ext_T)
 
@@ -184,7 +186,7 @@ NET_3_storage = Network(SRC_3, SubStations_3, storage_buffer = Stor1)
 A3_storage=  Simulation(NET_3_storage, ext_T)
 
 def test_storage():
-    param={'max_num_iteration': 60, 'population_size': 90, 'mutation_probability': 0.1, 'elit_ratio': 0.2, 'crossover_probability': 0.65, 'parents_portion': 0.3, 'crossover_type': 'uniform', 'max_iteration_without_improv': None}
+    param={'max_num_iteration': 60, 'population_size': 120, 'mutation_probability': 0.1, 'elit_ratio': 0.2, 'crossover_probability': 0.65, 'parents_portion': 0.3, 'crossover_type': 'uniform', 'max_iteration_without_improv': None}
     
     varbound=np.array([[60, 105]]*24+ [[-5, 5]]*24)
     
@@ -192,7 +194,7 @@ def test_storage():
     
     step = 1
     dim = 48
-    ex =  [75, 75, 75, 75, 76, 76, 76, 79, 80, 78, 77, 69, 72, 67, 66, 62, 71, 60, 64, 73, 73, 74, 74, 64] + [0] * 24
+    ex =  [75.0, 76.0, 76.0, 76.0, 76.0, 76.0, 76.0, 77.0, 77.0, 77.0, 77.0, 75.0, 72.0, 71.0, 69.0, 68.0, 63.0, 72.0, 72.0, 73.0, 73.0, 73.0, 74.0, 74.0, 0.0, 0.0, -0.04329989515377783, -0.20038069235768852, 0.0, 0.0, -0.06529396417240108, -1.6289906863083194, -1.8406841834767826, -4.8619820313124755, 0.0, -0.033245495126069, 0.0400853376187964, -4.086088819277983, 1.4384893410289745, 0.0, -1.238141442194575, -0.14937113829617665, -4.390134819942694, 0.0, -4.855940153336126, -3.295454336307153, 0.0, 0.0]
     model=ga(function=A3_storage.objective_function_optim,dimension= dim,variable_type='int',variable_boundaries=varbound, variable_type_mixed= var_type, algorithm_parameters=param, value_step = step, exemple = ex)
     
     model.run()
@@ -200,3 +202,12 @@ def test_storage():
     Instruct = list(model.output_dict['variable'])
     return Instruct
     
+    
+##
+I = [75.0, 76.0, 76.0, 76.0, 76.0, 76.0, 76.0, 77.0, 77.0, 77.0, 77.0, 75.0, 72.0, 71.0, 69.0, 68.0, 63.0, 72.0, 72.0, 73.0, 73.0, 73.0, 74.0, 74.0, 0.0, 0.0, -0.04329989515377783, -0.20038069235768852, 0.0, 0.0, -0.06529396417240108, -1.6289906863083194, -1.8406841834767826, -4.8619820313124755, 0.0, -0.033245495126069, 0.0400853376187964, -4.086088819277983, 1.4384893410289745, 0.0, -1.238141442194575, -0.14937113829617665, -4.390134819942694, 0.0, -4.855940153336126, -3.295454336307153, 0.0, 0.0]
+
+T = I[0:24]
+
+S  = I[24::]
+
+T_optim= [75.0, 76.0, 76.0, 76.0, 76.0, 76.0, 76.0, 77.0, 77.0, 76.0, 77.0, 74.0, 74.0, 65.0, 67.0, 71.0, 71.0, 71.0, 72.0, 72.0, 73.0, 74.0, 74.0, 73.0]

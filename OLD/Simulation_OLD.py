@@ -6,7 +6,7 @@ from random import gauss
 from itertools import *
 import time
 
-from Networks import *
+from OLD.Network_twopipesSS_OLD import *
 from Components.Source import Source
 from Components.Heat_exchanger import HEX
 from Components.Pipes import Pipe
@@ -77,8 +77,8 @@ def simulation(RES, Ts2_h):
                     P_boiler.append(RES.boiler * RES.P_boiler)
                 t_tot += 1
                 
-                UA.append([X[0].UA() for X in RES.substations])
-                K.append([X[0].K for X in RES.substations])
+                # UA.append([X[0].UA() for X in RES.substations])
+                # K.append([X[0].K for X in RES.substations])
                  
             except ValueError:
                 plt.figure()
@@ -138,16 +138,16 @@ def simulation(RES, Ts2_h):
         plt.plot(t, [x/1000 for x in P_boiler], label = 'Gas boiler')
     plt.legend() 
     
-    plt.figure()
-    plt.title('UA')
-    for i in range(len(UA[0])):
-        plt.plot(t, [a[i] for a in UA], label = f'UA_{i}')
-    plt.legend()
-    
-    plt.figure()
-    plt.title('K')
-    for i in range(len(K[0])):
-        plt.plot(t, [a[i] for a in K], label = f'K_{i}')
+    # plt.figure()
+    # plt.title('UA')
+    # for i in range(len(UA[0])):
+    #     plt.plot(t, [a[i] for a in UA], label = f'UA_{i}')
+    # plt.legend()
+    # 
+    # plt.figure()
+    # plt.title('K')
+    # for i in range(len(K[0])):
+    #     plt.plot(t, [a[i] for a in K], label = f'K_{i}')
         
     plt.legend()
     plt.show()
@@ -175,7 +175,7 @@ SS1 = [HEX(70, 45, 44, 28, 1.6, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i,
 SS2 = [HEX(70, 45, 44, 32, 1.8, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 1000), Pipe(lam_i, lam_p, lam_s, 120e-3, 145e-3, 195e-3, z, 50)]
 SS3 = [HEX(70, 45, 44, 25, 1.8, 2.1), Pipe(lam_i, lam_p, lam_s, R_int, R_p, R_i, z, 500), Pipe(lam_i, lam_p, lam_s, 120e-3, 145e-3, 195e-3, z, 50)]
 
-SRC1 = Source(70, 20)
+SRC1 = Source(70, 20,150000, 3)
 
 NET = Network(SRC1, [SS1])
 NET2 = Network(SRC1, [SS1, SS2])
