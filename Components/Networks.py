@@ -7,18 +7,17 @@ class Network():
     def __init__(self, source, list_substations, storage_buffer = None):
         ''' inlet_T initialization supply Temperature of the network
         list_substations : [[HEX_i, Pipe_nodetopreviousnode_i]]'''
+        self.substations = list_substations
+        self.src = source
+        self.Storage = storage_buffer
+        self.nb_substations =  len(list_substations)
+        
         self.supplyT = source.Ts_Net
         self.returnT = list_substations[0][1].TR_ext()
         self.subm_dot = [X[0].m_dot1 for X in list_substations]
         self.m_dot = sum([X[0].m_dot1 for X in list_substations])
         self.Ts_nodes = [X[1].TS_ext() for X in list_substations]
         self.Tr_nodes = [0] + [X[1].TR_ext() for X in list_substations[::-1]] #from further node to closer
-        self.nb_substations =  len(list_substations)
-        
-        self.substations = list_substations
-        self.src = source
-        self.Storage = storage_buffer
-        self.alreadyrun = False
         
         self.storage_flow = 0
         self.Boiler_Tinstruct = None
@@ -31,6 +30,7 @@ class Network():
         self.Tsupply_default_SS = []
         self.maxT = 0
         
+        self.alreadyrun = False
         self.NETtype = 'Optim_boiler_storage'
         
     def iter_returnside(self):
@@ -142,7 +142,7 @@ class Network():
         
         if self.Storage is not None:
             self.storage_hot()
-        
+            
         #RETURN SIDE
         self.iter_returnside()
         

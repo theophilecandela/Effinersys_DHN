@@ -259,18 +259,18 @@ class Simulation():
         
         C_constraint = self.cost_constraintT/(len(self.t)*self.nb_SS)
         
-        print(f'coût conso = {C1}, coût ecart consigne = {C2}, coût T_maximale = {C_constraint}')
-        print(f'E_boiler = {E_boiler}, E_Geothermie = {E_Geo}  (MJ)')
-        print(f' Total produced (Boiler+GEO) = {E_tot} MJ \n Total Energy supplied to secondary = {Demand_supplied} MJ \n Total losses = {E_lost}')
-        ecart = (np.abs(E_lost + Demand_supplied - E_tot)/E_tot * 10000 //10) /10
-        print(f'Ecart (losses+consumation) / (Boiler+GEO) = {ecart} %')
-        print(f'Coût total = {C1 + C2 + C_constraint}')
+        # print(f'coût conso = {C1}, coût ecart consigne = {C2}, coût T_maximale = {C_constraint}')
+        # print(f'E_boiler = {E_boiler}, E_Geothermie = {E_Geo}  (MJ)')
+        # print(f' Total produced (Boiler+GEO) = {E_tot} MJ \n Total Energy supplied to secondary = {Demand_supplied} MJ \n Total losses = {E_lost}')
+        # ecart = (np.abs(E_lost + Demand_supplied - E_tot)/E_tot * 10000 //10) /10
+        # print(f'Ecart (losses+consumption) / (Boiler+GEO) = {ecart} %')
+        # print(f'Coût total = {C1 + C2 + C_constraint}')
         
         time2 = time.time()
         
         if exe_time:
             print(f"temps d'execution = {time2-time1}")
-        #return C1 + C2 + C_constraint
+        return C1 + C2 + C_constraint
         
     
     def plot(self, T_instruct, Storage_instruct = None):
@@ -366,8 +366,9 @@ class Simulation():
         
         plt.figure()
         plt.title(f'Network water flow')
-        plt.plot(t, [a for a in water_flow])
-        plt.plot(t, [a for a in storage_flow])
+        plt.plot(t, [a for a in water_flow], label = 'Network flow')
+        plt.plot(t, [a for a in storage_flow], label = 'storage flow (>0 if hot water delivery)')
+        plt.legend()
         plt.show()
         
         plt.figure()

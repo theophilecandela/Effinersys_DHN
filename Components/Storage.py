@@ -39,14 +39,12 @@ class Buffer:
     
     
     def delivery_hot_water(self):
+        
         mdot = np.abs(self.m_dot)
-        if self.hot_V - mdot * dt/rho >= 0:
-            self.hot_V = self.hot_V - mdot * dt/rho
-            return self.hot_T, mdot
-        else:
-            # self.hot_V = 0
-            # self.low_V = self.low_V - mdot * dt/rho
-            return self.low_T, 0
+        
+        self.hot_V = self.hot_V - mdot * dt/rho
+        return self.hot_T, mdot
+        
        
         
     def delivery_cold_water(self, mdot):

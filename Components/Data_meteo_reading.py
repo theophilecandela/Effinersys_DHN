@@ -63,6 +63,9 @@ def plot():
     plt.show()
 
 
+
+
+## Useless - Previous garbage
 def Ts2_A(Ta):
     return 90 - (30/27)* (Ta + 7)
 
