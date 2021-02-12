@@ -27,7 +27,9 @@ class Simulation():
         self.E_Geo = 0
         self.E_boiler = 0
         self.E_default = 0
+        self.E_stored = 0
         self.P_boiler = []
+        self.P_Geo = []
         self.Demand = 0
         self.Demand_supplied = 0
         self.heat_losses = 0
@@ -47,7 +49,7 @@ class Simulation():
         '''when user wants to modify Ta, this method is called and consequently modifies the duration of simulation'''
         self.nb_hour =len(Ta)
         self.t = list(range(0, self.nb_hour*(3600//dt)))
-
+        self._Ta = Ta
     Ta = property(_get_Ta, _set_Ta)
     
 
@@ -112,6 +114,7 @@ class Simulation():
                 
             for i, (hex, pipe1) in enumerate(self.RES.substations):
                 hex.Tr1, hex.Ts2_vrai, hex.Ts1, hex.m_dot1 = save[i][0]['Tr1'], save[i][0]['Ts2_vrai'], save[i][0]['Ts1'], save[i][0]['m1']
+                hex.m_dot2 = hex.mdotnom
                 pipe1.pipeS_T = list(save[i][1]).copy()
                 pipe1.pipeR_T = list(save[i][2]).copy()
                 
@@ -162,15 +165,18 @@ class Simulation():
         self.E_Geo = 0
         self.E_boiler = 0
         self.E_default = 0
+        self.E_stored = 0
         self.Demand = 0
         self.Demand_supplied = 0
         self.heat_losses = 0
         self.cost_Tdefault_SS = [0] * self.nb_SS
         self.cost_constraintT = 0
         self.P_boiler = [] 
+        self.P_Geo = []
         time1 = time.time()
         t_tot = 0
         t_unsupplied = [0] * self.nb_SS
+        self.RES.storage_flow = 0
         
         if T_instruct is not None:
             if len(T_instruct) != self.nb_hour:
@@ -182,6 +188,12 @@ class Simulation():
         for j in range(self.nb_hour):
             for p in range(self.nb_SS):
                 self.RES.substations[p][0].Ts2 = self.RES.substations[p][0].f_Ts2(self.Ta[j])
+                # if self.RES.substations[p][0].varm2 is not None:
+                #     print(self.RES.substations[p][0].m_dot2)
+                #     self.RES.substations[p][0].m_dot2 = self.RES.substations[p][0].varm2[j] * self.RES.substations[p][0].mdotnom
+                #     print(self.RES.substations[p][0].m_dot2)
+                #     print(self.RES.substations[p][0].varm2, j)
+                    
             if T_instruct is not None:
                 self.RES.Boiler_Tinstruct = T_instruct[j]
 
@@ -195,8 +207,10 @@ class Simulation():
                 
                 # Watts
                 self.P_boiler.append(self.RES.P_Boiler)
+                self.P_Geo.append(self.RES.P_Geo)
                 self.E_Geo += self.RES.P_Geo
                 self.E_boiler += self.RES.P_Boiler
+                self.E_stored += self.RES.P_stored
                 self.Demand += self.RES.P_demand
                 self.Demand_supplied += self.RES.P_supplied
                 self.heat_losses += self.RES.P_losses
@@ -226,7 +240,7 @@ class Simulation():
         T_instruct = Instructions[0:self.nb_hour]
         Stor_instruct = None
         if len(Instructions) > self.nb_hour:
-            Stor_instruct = Instructions[24::]
+            Stor_instruct = Instructions[self.nb_hour::]
         return self.objective_function(T_instruct, Storage_instructions = Stor_instruct)
             
     def objective_function(self, T_boiler_instruction, Storage_instructions = None, exe_time = False):
@@ -252,24 +266,26 @@ class Simulation():
         Demand = self.Demand*dt/1000000
         Demand_supplied = self.Demand_supplied *dt/1000000
         E_lost = self.heat_losses * dt/1000000
+        E_stored = (float(self.E_stored) * dt/100000) //1/10
         
-        C1 = E_boiler/(E_tot) #* C_kWh * E_boiler
+        C1 = 10*E_boiler/(E_tot) #* C_kWh * E_boiler
         
         C2 = sum(self.cost_Tdefault_SS)/(len(self.t)*self.nb_SS)
         
         C_constraint = self.cost_constraintT/(len(self.t)*self.nb_SS)
-        
-        # print(f'coût conso = {C1}, coût ecart consigne = {C2}, coût T_maximale = {C_constraint}')
-        # print(f'E_boiler = {E_boiler}, E_Geothermie = {E_Geo}  (MJ)')
-        # print(f' Total produced (Boiler+GEO) = {E_tot} MJ \n Total Energy supplied to secondary = {Demand_supplied} MJ \n Total losses = {E_lost}')
-        # ecart = (np.abs(E_lost + Demand_supplied - E_tot)/E_tot * 10000 //10) /10
-        # print(f'Ecart (losses+consumption) / (Boiler+GEO) = {ecart} %')
-        # print(f'Coût total = {C1 + C2 + C_constraint}')
-        
         time2 = time.time()
         
         if exe_time:
+            print('------------------------------------------------------------------')
+            print(f'coût conso = {C1}, coût ecart consigne = {C2}, coût T_maximale = {C_constraint}')
+            print(f'E_boiler = {E_boiler}, E_Geothermie = {E_Geo}  (MJ)')
+            print(f' Total produced (Boiler+GEO) = {E_tot} MJ \n Total Energy supplied to secondary = {Demand_supplied} MJ on Total Demand = {Demand} => coverage = {(Demand_supplied/Demand)*10000//10/10} % \n Total E stored = {E_stored} MJ \n Total losses = {E_lost}')
+            ecart = (np.abs(E_lost + E_stored + Demand_supplied - E_tot)/E_tot * 10000 //10) /10
+            print(f'Ecart (storage + losses + consumption) / (Boiler+GEO) = {ecart} %')
+            print(f'Coût total = {C1 + C2 + C_constraint}')
+            print('---------------------------------')
             print(f"temps d'execution = {time2-time1}")
+            print('------------------------------------------------------------------')
         return C1 + C2 + C_constraint
         
     
@@ -282,7 +298,11 @@ class Simulation():
         T_secondary_demand = []
         T_supply_primary_boiler = []
         P_boiler = []
-        water_flow = []
+        P_Geo = []
+        P_demand = []
+        P_storage = []
+        water_flow_supply = []
+        water_flow_HEXGeo = []
         storage_flow = []
         E_boiler = 0
         
@@ -318,21 +338,26 @@ class Simulation():
                 
                 self.RES.iteration()
                 
-                T_supply_primary_boiler.append(self.RES.Boiler_Tinstruct)
+                T_supply_primary_boiler.append(self.RES.supplyT)
                 P_boiler.append(self.RES.P_Boiler)
+                P_Geo.append(self.RES.P_Geo)
+                P_demand.append(self.RES.P_demand)
+                
                 E_boiler += self.RES.P_Boiler
                 T_return_SS.append([X[0].Tr1 for X in self.RES.substations])
                 T_supplySS.append([X[0].Ts1 for X in self.RES.substations])
                 T_secondary_demand.append([X[0].Ts2 for X in self.RES.substations])
                 T_supply_secondary.append([X[0].Ts2_vrai for X in self.RES.substations])
-                water_flow.append(self.RES.m_dot)
-                #storage_flow.append(self.RES.storage_flow)
-                storage_flow.append(self.RES.Storage.m_dot)
+                water_flow_supply.append(self.RES.m_dot)
+                water_flow_HEXGeo.append(self.RES.src.mdot_NET)
                 
-                storage_hV.append(self.RES.Storage.hot_V)
-                storage_lV.append(self.RES.Storage.low_V)
-                
-                storage_hT.append(self.RES.Storage.hot_T)
+                if Storage_instruct is not None:
+                    #storage_flow.append(self.RES.storage_flow)
+                    storage_flow.append(self.RES.Storage.m_dot)
+                    storage_hV.append(self.RES.Storage.hot_V)
+                    storage_lV.append(self.RES.Storage.low_V)
+                    storage_hT.append(self.RES.Storage.hot_T)
+                    P_storage.append(-self.RES.P_stored)
                 
                 t_tot += 1
               
@@ -360,33 +385,41 @@ class Simulation():
         plt.legend()
         
         plt.figure()
-        plt.title(f'Boiler Power')
-        plt.plot(t, [a for a in P_boiler])
+        plt.title(f'Sources Power')
+        plt.plot(t, [a for a in P_boiler], label = 'Boiler Power')
+        plt.plot(t, [a for a in P_Geo], label = 'Geo Power')
+        plt.plot(t, [a for a in P_demand], label = 'Requested SS Power')
+        if Storage_instruct is not None:
+            plt.plot(t, [a for a in P_storage], label = 'Storage Power')
+        plt.legend()
         plt.show()
         
         plt.figure()
         plt.title(f'Network water flow')
-        plt.plot(t, [a for a in water_flow], label = 'Network flow')
-        plt.plot(t, [a for a in storage_flow], label = 'storage flow (>0 if hot water delivery)')
+        plt.plot(t, [a for a in water_flow_supply], label = 'Network supply flow')
+        if Storage_instruct is not None:
+            plt.plot(t, [a for a in water_flow_HEXGeo], label = 'HEX Geo flow')
+            plt.plot(t, [a for a in storage_flow], label = 'storage flow (>0 if hot water delivery)')
         plt.legend()
         plt.show()
         
-        plt.figure()
-        plt.title(f'Storage Volume')
-        plt.plot(t, [a for a in storage_hV], label = 'hV')
-        plt.plot(t, [a for a in storage_lV], label = 'lV')
-        plt.legend()
-        plt.show()
+        if Storage_instruct is not None:
+            plt.figure()
+            plt.title(f'Storage Volume')
+            plt.plot(t, [a for a in storage_hV], label = 'hV')
+            plt.plot(t, [a for a in storage_lV], label = 'lV')
+            plt.legend()
+            plt.show()
         
-        plt.figure()
-        plt.title(f'Storage hT')
-        plt.plot(t, [a for a in storage_hT], label = 'hT')
-        plt.legend()
-        plt.show()
+            plt.figure()
+            plt.title(f'Storage hT')
+            plt.plot(t, [a for a in storage_hT], label = 'hT')
+            plt.legend()
+            plt.show()
         
         plt.figure()
         plt.title('Supply pipes delays')
-        plt.plot(t,T_supply_primary_boiler, label = 'Supply T' )
+        plt.plot(t,T_supply_primary_boiler, label = 'Supply T', color = 'red' )
         for i in range(len(T_supply_secondary[0])):
             plt.plot(t, [a[i] for a in T_supplySS], label = f'Supply_T_net SS_{i}')
         plt.legend()

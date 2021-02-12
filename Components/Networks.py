@@ -27,6 +27,7 @@ class Network():
         self.P_demand = 0
         self.P_supplied = 0
         self.P_losses = 0
+        self.P_stored = 0
         self.Tsupply_default_SS = []
         self.maxT = 0
         
@@ -60,15 +61,16 @@ class Network():
         if self.Boiler_Tinstruct != None:
             if self.Boiler_Tinstruct > self.supplyT:
                 self.P_Boiler = (self.Boiler_Tinstruct - self.supplyT)*Cp*m_dot 
+                #self.P_Boiler = min(300000, (self.Boiler_Tinstruct - self.supplyT)*Cp*m_dot )
             else: 
                 self.P_Boiler = 0
                         
         supplyT_reheated = self.supplyT + self.P_Boiler/(Cp * m_dot) #=self.Boiler_Tinstruct
+        self.supplyT = supplyT_reheated
         T_node = [supplyT_reheated] + list(self.Ts_nodes)
         self.maxT = supplyT_reheated
             
 
-        
         for i, (hex, pipe1) in enumerate(self.substations):
             #Calculation of Temperatures in the network at time (t+1) (for next iteration)
             pipe1.evolS_T(m_dot, T_node[i])
@@ -91,6 +93,7 @@ class Network():
     
     def storage_cold(self):
         mdot = 0
+        self.Storage.P_in_cold = 0
         if self.storage_flow > 0:
             if np.abs(self.storage_flow) >= self.m_dot:
                 raise ValueError((np.abs(self.storage_flow)/self.m_dot)*20)
@@ -108,6 +111,7 @@ class Network():
             
             
     def storage_hot(self):
+        self.Storage.P_in_hot = 0
         if self.Storage.m_dot > 0:
             T , mdot = self.Storage.delivery_hot_water()
             self.supplyT = (self.supplyT * self.m_dot + T * mdot)/(self.m_dot + mdot)
@@ -127,6 +131,7 @@ class Network():
         self.P_demand = 0
         self.P_supplied = 0
         self.P_losses = 0
+        self.P_stored = 0
         self.Tsupply_default_SS = []
         
         #STORAGE AND GEOTHERMAL HEX
@@ -142,6 +147,7 @@ class Network():
         
         if self.Storage is not None:
             self.storage_hot()
+            self.P_stored = self.Storage.P_in_hot + self.Storage.P_in_cold
             
         #RETURN SIDE
         self.iter_returnside()

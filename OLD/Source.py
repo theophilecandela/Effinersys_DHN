@@ -19,30 +19,27 @@ class Source:
         f_prime = lambda x: 1 - deltaTlm_nom/x
         self.Tr_Net = self.Tr_Geo - newton(f, f_prime, x0)
         
-        UAnom = Q_nom/deltaTlm_nom
-        Unom = 5000/2
-        self.Aex = UAnom/Unom
-        self.hnom = 5000
-        self.mdot_NET = geoMdot
-        
     
-    def UA(self, m_dotNET):
+    def UA(self):
         '''calculates the UA in Q = UA.deltaTlog, with the approximation given in J.J.J. Chen, Comments on improvements on a replacement for the logarithmic mean  '''
-        U = self.hnom/((self.m_dot/m_dotNET)**0.8 + 1)
-        UA = U*self.Aex
+        a = 0.3275
+        Q = Cp * self.m_dot * (self.Ts_Geo - self.Tr_Geo)
+        deltaTlm = ((self.Ts_Geo-self.Tr_Geo) - (self.Ts_Net-self.Tr_Net))/ln((self.Ts_Geo - self.Tr_Geo)/(self.Ts_Net-self.Tr_Net))
+        
+        UA = Q/deltaTlm
         return UA
         
     def solve(self, m_dotNET, TrNET):
         '''For a secondary side (network side) return temperature and mass flow, calculates the supply temperature of the network'''
         a = 0.3275
-        UA = self.UA(m_dotNET) 
+        UA = self.UA() 
         #print(f'UA = {UA}')
         self.Tr_Net  = TrNET
-        self.mdot_NET = m_dotNET
         if m_dotNET < self.m_dot:
             NUT = UA/(Cp*m_dotNET)
             R = m_dotNET/self.m_dot
             E = eff(NUT, R)
+            print(f'E = {E}')
             self.Ts_Net = self.Tr_Net + E*(self.Ts_Geo - self.Tr_Net)
             self.Tr_Geo = self.Ts_Geo - R*(self.Ts_Net-self.Tr_Net)
         

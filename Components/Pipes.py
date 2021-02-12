@@ -89,11 +89,13 @@ class Pipe:
 
 def test_evol_pipe(pipe, T_in, mdot, n):
     k = 0
-    plt.plot(list(range(pipe.nb_controlvolume)), pipe.pipeS_T)
-    plt.show()
+    plt.figure()
+    plt.plot(list(range(pipe.nb_controlvolume)), pipe.pipeS_T, label = f't = 0 s')
     while k < n :
         pipe.evolS_T(mdot, T_in)
-        if k%5 == 0:
-            plt.plot(list(range(pipe.nb_controlvolume)), pipe.pipeS_T)
+        if k%3 == 0:
+            plt.plot(list(range(pipe.nb_controlvolume)), pipe.pipeS_T, label = f't = {(k+1) * dt}s')
+            plt.title(f'R = {pipe.R(mdot)}, débit = {mdot}')
+            plt.legend()
             plt.show()
         k += 1

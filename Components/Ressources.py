@@ -45,7 +45,10 @@ dt = 300 #discretization time step (s)
 
 ##Functions
 def eff(N, R):
-    return (1 - np.exp((R-1)*N))/(1-R*np.exp((R-1)*N))
+    if R != 1:
+        return (1 - np.exp((R-1)*N))/(1-R*np.exp((R-1)*N))
+    else:
+        return N/(1+N)
     
 def newton(f, f_prime, x0, eps = 0.0001):
     x = x0

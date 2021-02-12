@@ -5,7 +5,7 @@ from itertools import *
 from Components.Ressources import *
 
 class HEX_nom():
-    def __init__(self, Qnom, Tr2, f_Ts2, hnom, deltaTlm_nom , qmax):
+    def __init__(self, Qnom, Tr2, f_Ts2, hnom, deltaTlm_nom , qmax, varm2 = None):
         mdot_2 = Qnom/(Cp * (f_Ts2(-7) - Tr2))
         UAnom = Qnom/deltaTlm_nom
         Unom = hnom/2
@@ -20,6 +20,8 @@ class HEX_nom():
         self.m_dot2 = mdot_2
         self.m_dot1 = mdot_2
         self.qmax = qmax 
+        self.mdotnom = mdot_2
+        self.varm2 = varm2
         
         #Why? We do know Q, m_dot and Ts1
         if self.Ts1 - self.Ts2 > deltaTlm_nom:
@@ -32,7 +34,8 @@ class HEX_nom():
         
     def UA(self):
         '''calculates the U*Aex, with U the heat-transfer coefficient '''
-        U = self.hnom*self.m_dot2**0.8/((self.m_dot2/self.m_dot1)**0.8 + 1)
+        #U = self.hnom*self.m_dot2**0.8/((self.m_dot2/self.m_dot1)**0.8 + 1)
+        U = self.hnom/((self.m_dot2/self.m_dot1)**0.8 + 1)
         UA = U*self.Aex
         return UA
 
@@ -55,6 +58,7 @@ class HEX_nom():
         # Tr1 = Ts1 - P/(Cp * self.m_dot1)
         # Ts2_vrai = self.Ts2
         # self.Tr2 = self.Ts2 - P/(Cp * m2)
+        
         if Ts2 <= Ts1:
             Tr1 = Tr2 + (2 * (Q/(UA))**a - (Ts1 - Ts2)**a)**(1/a)
             m1 = m2*(Ts2 - Tr2)/(Ts1 - Tr1)
@@ -65,7 +69,7 @@ class HEX_nom():
 
             Ts2c = (Tr1 > Tr2)*(Tr1 < Ts1)
         Ts2_vrai = Ts2
-                
+        
         if Ts2>Ts1 or not Ts2c or m1 > self.qmax:
             m1 = self.qmax
             NUT = UA/(Cp*m2)
@@ -73,6 +77,7 @@ class HEX_nom():
             E = eff(NUT, R)
             Ts2_vrai = Tr2 + E*(Ts1-Tr2)
             Tr1 = Ts1 - (m2/m1)*(Ts2_vrai-Tr2)
+            
 
         self.Tr1 = Tr1
         self.m_dot1 = m1
